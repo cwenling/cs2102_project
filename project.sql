@@ -1,18 +1,18 @@
 CREATE TABLE Employees (
-eid        INTEGER PRIMARY KEY,
-ename        TEXT,
-home_num     NUMBER,
-mobile_num     NUMBER,
-office_num    NUMBER,
-email         TEXT UNIQUE NOT NULL,
-res_date     DATE,
-did        INTEGER NOT NULL,
-FOREIGN KEY (did) REFERENCES Departments (did)
+    eid           INTEGER PRIMARY KEY,
+    ename         TEXT,
+    home_num      NUMBER,
+    mobile_num	  NUMBER,
+    office_num    NUMBER,
+    email         TEXT UNIQUE NOT NULL,
+    res_date      DATE,
+    did           INTEGER NOT NULL,
+    FOREIGN KEY (did) REFERENCES Departments (did)
 );
 
 CREATE TABLE Juniors (
     eid        INTEGER PRIMARY KEY,
-    FOREIGN KEY (eid) REFERENCES Employees (eid) ON DELETE CASCADE ON   UPDATE CASCADE
+    FOREIGN KEY (eid) REFERENCES Employees (eid) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE Bookers (
@@ -21,7 +21,7 @@ CREATE TABLE Bookers (
 );
 
 CREATE TABLE Seniors (
-    eid         INTEGER PRIMARY KEY,
+    eid		INTEGER PRIMARY KEY,
 FOREIGN KEY (eid) REFERENCES Bookers (eid) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -36,22 +36,22 @@ CREATE TABLE Departments (
 );
 
 CREATE TABLE MeetingRooms (
-    floor_num     INTEGER,
-room_num     INTEGER,
-rname        TEXT,
-    did         INTEGER NOT NULL,
+    floor_num    INTEGER,
+    room_num     INTEGER,
+    rname        TEXT,
+    did          INTEGER NOT NULL,
     PRIMARY KEY (floor_num, room_num),
     FOREIGN KEY (did) REFERENCES Departments (did)
 );
 
 -- eid refers to the manager’s eid
 CREATE TABLE Updates (
-    date        DATE,
-    new_cap    INTEGER CHECK (new_cap >= 0),
-floor_num     INTEGER,
-room_num     INTEGER,
-eid        INTEGER NOT NULL,
-PRIMARY KEY (date, floor_num, room_num),
+    date            DATE,
+    new_cap         INTEGER CHECK (new_cap >= 0),
+    floor_num       INTEGER,
+    room_num        INTEGER,
+    eid             INTEGER NOT NULL,
+    PRIMARY KEY (date, floor_num, room_num),
     FOREIGN KEY (floor_num, room_num) REFERENCES MeetingRooms (floor_num, room_num),
     FOREIGN KEY (eid) REFERENCES Managers (eid)
 );
@@ -59,7 +59,7 @@ PRIMARY KEY (date, floor_num, room_num),
 CREATE TABLE HealthDeclarations (
     date        DATE,
     temp        NUMERIC NOT NULL CHECK (temp >= 34 AND temp <= 43),
-    eid        INTEGER,
+    eid         INTEGER,
     PRIMARY KEY (eid, date),
     FOREIGN KEY (eid) REFERENCES Employees (eid)
 );
@@ -70,20 +70,21 @@ CREATE TABLE Sessions (
     floor_num    INTEGER,
     room_num     INTEGER,
     booker_id    INTEGER NOT NULL,
-    approval_id    INTEGER,
+    approval_id  INTEGER,
     PRIMARY KEY (time, date, floor_num, room_num),
-    FOREIGN KEY (floor_num, room_num) REFERENCES MeetingRooms (floor_num, room_num)
-FOREIGN KEY (booker_id) REFERENCES Bookers (eid),
-FOREIGN KEY (approval_id) REFERENCES Managers (eid)
+    FOREIGN KEY (floor_num, room_num) REFERENCES MeetingRooms (floor_num, room_num),
+    FOREIGN KEY (booker_id) REFERENCES Bookers (eid),
+    FOREIGN KEY (approval_id) REFERENCES Managers (eid)
 );
 
 CREATE TABLE Joins (
-    eid        INTEGER,
-time         INTEGER,
+    eid          INTEGER,
+    time         INTEGER,
     date         DATE,
     floor_num    INTEGER,
     room_num     INTEGER,
     PRIMARY KEY (eid, time, date, floor_num, room_num),
-FOREIGN KEY (time, date, floor_num, room_num) REFERENCES Sessions (time, date, floor_num, room_num)
+    FOREIGN KEY (time, date, floor_num, room_num) 
+        REFERENCES Sessions (time, date, floor_num, room_num),
     FOREIGN KEY (eid) REFERENCES Employees (eid)
 );
