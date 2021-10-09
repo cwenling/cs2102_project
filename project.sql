@@ -1,70 +1,89 @@
 CREATE TABLE Employees (
-emp_id    INTEGER PRIMARY KEY,
+eid        INTEGER PRIMARY KEY,
 ename        TEXT,
-phone_num    INTEGER,
+home_num     NUMBER,
+mobile_num     NUMBER,
+office_num    NUMBER,
 email         TEXT UNIQUE NOT NULL,
-dept_id    INTEGER,
-FOREIGN KEY (dept_id) REFERENCES Departments (dept_id)
-);
-
-CREATE TABLE Managers (
-    emp_id     INTEGER PRIMARY KEY,
-    approval_ban     BOOLEAN DEFAULT False,
-    booking_ban     BOOLEAN DEFAULT False,
-    FOREIGN KEY (emp_id) REFERENCES Employees (emp_id)
+res_date     DATE,
+did        INTEGER NOT NULL,
+FOREIGN KEY (did) REFERENCES Departments (did)
 );
 
 CREATE TABLE Juniors (
-    emp_id    INTEGER PRIMARY KEY,
-    FOREIGN KEY (emp_id) REFERENCES Employees (emp_id)
+    eid        INTEGER PRIMARY KEY,
+    FOREIGN KEY (eid) REFERENCES Employees (eid) ON DELETE CASCADE ON   UPDATE CASCADE
+);
+
+CREATE TABLE Bookers (
+    eid        INTEGER PRIMARY KEY,
+    FOREIGN KEY (eid) REFERENCES Employees (eid) ON DELETE CASCADE ON UPDATE CASCADE 
 );
 
 CREATE TABLE Seniors (
-    emp_id     INTEGER PRIMARY KEY,
-    booking_ban    BOOLEAN DEFAULT False,
-FOREIGN KEY (emp_id) REFERENCES Employees (emp_id)
+    eid         INTEGER PRIMARY KEY,
+FOREIGN KEY (eid) REFERENCES Bookers (eid) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE Managers (
+    eid         INTEGER PRIMARY KEY,
+    FOREIGN KEY (eid) REFERENCES Bookers (eid) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE Departments (
-    dept_id      INTEGER PRIMARY KEY,
+    did          INTEGER PRIMARY KEY,
     dname        TEXT
+);
+
+CREATE TABLE MeetingRooms (
+    floor_num     INTEGER,
+room_num     INTEGER,
+rname        TEXT,
+    did         INTEGER NOT NULL,
+    PRIMARY KEY (floor_num, room_num),
+    FOREIGN KEY (did) REFERENCES Departments (did)
+);
+
+-- eid refers to the manager’s eid
+CREATE TABLE Updates (
+    date        DATE,
+    new_cap    INTEGER CHECK (new_cap >= 0),
+floor_num     INTEGER,
+room_num     INTEGER,
+eid        INTEGER NOT NULL,
+PRIMARY KEY (date, floor_num, room_num),
+    FOREIGN KEY (floor_num, room_num) REFERENCES MeetingRooms (floor_num, room_num),
+    FOREIGN KEY (eid) REFERENCES Managers (eid)
 );
 
 CREATE TABLE HealthDeclarations (
     date        DATE,
-    temperature    NUMERIC,
-    emp_id    INTEGER,
-    PRIMARY KEY (emp_id, date),
-    FOREIGN KEY (emp_id) REFERENCES Employees (emp_id)
+    temp        NUMERIC NOT NULL CHECK (temp >= 34 AND temp <= 43),
+    eid        INTEGER,
+    PRIMARY KEY (eid, date),
+    FOREIGN KEY (eid) REFERENCES Employees (eid)
 );
 
-CREATE TABLE Bookings (
-    b_id        INTEGER PRIMARY KEY,
+CREATE TABLE Sessions (
+    time         INTEGER,
+    date         DATE,
     floor_num    INTEGER,
     room_num     INTEGER,
+    booker_id    INTEGER NOT NULL,
+    approval_id    INTEGER,
+    PRIMARY KEY (time, date, floor_num, room_num),
+    FOREIGN KEY (floor_num, room_num) REFERENCES MeetingRooms (floor_num, room_num)
+FOREIGN KEY (booker_id) REFERENCES Bookers (eid),
+FOREIGN KEY (approval_id) REFERENCES Managers (eid)
+);
+
+CREATE TABLE Joins (
+    eid        INTEGER,
+time         INTEGER,
     date         DATE,
-    start_hour     TIME,
-    end_hour     TIME,
-    is_approved     BOOLEAN DEFAULT False,
-    UNIQUE (date, start_hour, end_hour, floor_num, room_num),
-    FOREIGN KEY (floor_num, room_num) REFERENCES MeetingRooms (floor_num, room_num),
-    CHECK (end_hour - start_hour = 1)
-);
-
-CREATE TABLE Participants (
-    emp_id    INTEGER,
-    b_id         INTEGER,
-    PRIMARY KEY (emp_id, b_id),
-    FOREIGN KEY (emp_id) REFERENCES Employees (emp_id),
-    FOREIGN KEY (b_id) REFERENCES Bookings (b_id)
-);
-
-CREATE TABLE MeetingRooms (
-    rname         TEXT,
-    floor_num     INTEGER,
-room_num     INTEGER,
-    max_capacity     INTEGER NOT NULL, 
-    dept_id     INTEGER,
-    PRIMARY KEY (floor_num, room_num),
-    FOREIGN KEY (dept_id) REFERENCES Departments (dept_id)
+    floor_num    INTEGER,
+    room_num     INTEGER,
+    PRIMARY KEY (eid, time, date, floor_num, room_num),
+FOREIGN KEY (time, date, floor_num, room_num) REFERENCES Sessions (time, date, floor_num, room_num)
+    FOREIGN KEY (eid) REFERENCES Employees (eid)
 );
