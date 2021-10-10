@@ -54,8 +54,7 @@ $$
 	LANGUAGE plpgsql;
 
 
---add_employee (doesnt work)
-/*
+--add_employee 
 CREATE OR REPLACE FUNCTION add_employee 
 	(IN name TEXT, IN home_con INT, IN mobile_con INT, IN office_con INT, IN type TEXT, IN d_id INT) RETURNS VOID AS 
 $$
@@ -64,9 +63,10 @@ DECLARE
 	e_id_str TEXT;
 	g_email TEXT;
 BEGIN
-	SELECT eid, COUNT(*) INTO e_id FROM Employees GROUP BY eid;	
+	SELECT COUNT(*) INTO e_id FROM Employees;	
+	e_id = e_id + 1;
 	SELECT CAST(e_id AS TEXT) INTO e_id_str;
-	SELECT CONCAT(e_id_str, '_', name, '@company.com');
+	SELECT CONCAT(e_id_str, '_', name, '@company.com') INTO g_email;
 	
 	INSERT INTO Employees VALUES (e_id, name, home_con, mobile_con, office_con, g_email, null, d_id);
 	
@@ -75,12 +75,12 @@ BEGIN
 	END IF;
 	
 	IF type = 'senior' THEN INSERT INTO Seniors VALUES (e_id);
-	ELSIF type = 'manaager' THEN INSERT INTO Managers VALUES (e_id);
+	ELSIF type = 'manager' THEN INSERT INTO Managers VALUES (e_id);
+	ELSE
 	END IF;
 END
 $$ 
 	LANGUAGE plpgsql;
-*/
 
 --remove_employee
 CREATE OR REPLACE FUNCTION remove_employee 
