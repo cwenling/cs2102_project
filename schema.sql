@@ -1,5 +1,10 @@
 DROP TABLE IF EXISTS Employees, Juniors, Bookers, Seniors, Managers, Departments, MeetingRooms,Updates, HealthDeclarations, Sessions, Joins CASCADE;
 
+CREATE TABLE Departments (
+    did          INTEGER PRIMARY KEY,
+    dname        TEXT
+);
+
 CREATE TABLE Employees (
     eid           INTEGER PRIMARY KEY,
     ename         TEXT,
@@ -30,11 +35,6 @@ FOREIGN KEY (eid) REFERENCES Bookers (eid) ON DELETE CASCADE ON UPDATE CASCADE
 CREATE TABLE Managers (
     eid         INTEGER PRIMARY KEY,
     FOREIGN KEY (eid) REFERENCES Bookers (eid) ON DELETE CASCADE ON UPDATE CASCADE
-);
-
-CREATE TABLE Departments (
-    did          INTEGER PRIMARY KEY,
-    dname        TEXT
 );
 
 CREATE TABLE MeetingRooms (
