@@ -1,9 +1,9 @@
 CREATE TABLE Employees (
     eid           INTEGER PRIMARY KEY,
     ename         TEXT,
-    home_num      NUMBER,
-    mobile_num	  NUMBER,
-    office_num    NUMBER,
+    home_num      INTEGER,
+    mobile_num	  INTEGER,
+    office_num    INTEGER,
     email         TEXT UNIQUE NOT NULL,
     res_date      DATE,
     did           INTEGER NOT NULL,
