@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS Employees, Juniors, Bookers, Seniors, Managers, Departments, MeetingRooms,Updates, HealthDeclarations, Sessions, Joins CASCADE;
+
 CREATE TABLE Employees (
     eid           INTEGER PRIMARY KEY,
     ename         TEXT,
