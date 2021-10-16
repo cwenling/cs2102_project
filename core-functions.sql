@@ -2,44 +2,48 @@
 -- - returns all rooms available from [start_hour, end_hour)
 -- - sort in ascending order of capacity
 -- TODO: confusing zzzz
--- CREATE OR REPLACE FUNCTION search_room
---     (IN query_cap INT, IN query_date DATE, IN query_start_hour TIME, IN query_end_hour TIME,
---     OUT out_floor_num INT, OUT out_room_num INT, OUT out_did INT, OUT out_cap INT)
--- RETURNS RECORD AS $$
--- DECLARE
---     time_diff FLOAT := -1;
---     booker_eid INT := -1;
--- BEGIN
---     time_diff := DATEDIFF(MINUTE, query_start_hour, query_end_hour) / 60.0;
---     WHILE time_diff >= 1 LOOP
---         SELECT floor_num INTO temp_floor_num
---         FROM Sessions
---         WHERE date = query_date
---         AND time = query_start_hour;
 
---         SELECT room_num INTO temp_room_num
---         FROM Sessions
---         WHERE date = query_date
---         AND time = query_start_hour;
+-- entire list of meeting rooms
+-- EXCEPT
+-- sessions w same date at query_start and query_end (BETWEEN)
+CREATE OR REPLACE FUNCTION search_room
+    (IN query_cap INT, IN query_date DATE, IN query_start_hour TIME, IN query_end_hour TIME,
+    OUT out_floor_num INT, OUT out_room_num INT, OUT out_did INT, OUT out_cap INT)
+RETURNS RECORD AS $$
+DECLARE
+    time_diff FLOAT := -1;
+    booker_eid INT := -1;
+BEGIN
+    time_diff := DATEDIFF(MINUTE, query_start_hour, query_end_hour) / 60.0;
+    WHILE time_diff >= 1 LOOP
+        SELECT floor_num INTO temp_floor_num
+        FROM Sessions
+        WHERE date = query_date
+        AND time = query_start_hour;
 
---         SELECT booker_id INTO booker_eid
---         FROM Sessions
---         WHERE date = query_date
---         AND time = query_start_hour;
+        SELECT room_num INTO temp_room_num
+        FROM Sessions
+        WHERE date = query_date
+        AND time = query_start_hour;
+
+        SELECT booker_id INTO booker_eid
+        FROM Sessions
+        WHERE date = query_date
+        AND time = query_start_hour;
         
---         IF booker_eid <> -1 THEN
---             EXIT;
---         END IF;
+        IF booker_eid <> -1 THEN
+            EXIT;
+        END IF;
 
---         query_start_hour := query_start_hour + 1;
---         time_diff := query_end_hour - query_start_hour;
---     END LOOP;
+        query_start_hour := query_start_hour + 1;
+        time_diff := query_end_hour - query_start_hour;
+    END LOOP;
 
---     IF booker_eid = -1 THEN -- not booked
---         SELECT 
---     END IF;
--- END;
--- $$ LANGUAGE plpgsql
+    IF booker_eid = -1 THEN -- not booked
+        SELECT 
+    END IF;
+END;
+$$ LANGUAGE plpgsql
 
 -- book_room
 -- - A senior employee or a manager books a room by specifying the room and the session.
@@ -178,7 +182,7 @@ BEGIN
     IF time_diff >= 1 THEN
         SELECT temp INTO booker_temp
         FROM HealthDeclarations
-        WHERE eid = query_eid; -- TODO: do we need to check if date = query_date?
+        WHERE eid = query_eid; -- TODO: do we need to check if date = query_date? -- check current date
 
         IF booker_temp <= 37.5 THEN
             WHILE time_diff >= 1 LOOP

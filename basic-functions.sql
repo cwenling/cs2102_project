@@ -37,6 +37,7 @@ $$
 
 --change_capacity
 -- drawbacks: cannot update cap with same date and room num and floor num
+-- check if the entry already exists, if yes update instead of insert
 CREATE OR REPLACE FUNCTION change_capacity 
 	(IN floornum INT, IN roomnum INT, IN room_cap INT, IN today_date DATE, IN e_id INT) RETURNS VOID AS 
 $$
