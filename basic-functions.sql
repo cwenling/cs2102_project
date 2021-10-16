@@ -36,8 +36,8 @@ $$
 
 
 --change_capacity
--- drawbacks: cannot update cap with same date and room num and floor num
--- check if the entry already exists, if yes update instead of insert
+-- when adding a new cap, if the new cap, room num, floor num and date alr exists (aka only eid changed),
+-- nothing will be updated ie old data entry holds
 CREATE OR REPLACE FUNCTION change_capacity 
 	(IN floornum INT, IN roomnum INT, IN room_cap INT, IN today_date DATE, IN e_id INT) RETURNS VOID AS 
 $$
@@ -47,7 +47,13 @@ DECLARE
 BEGIN
 	SELECT did INTO d_id FROM Employees WHERE eid = e_id;
 	SELECT did INTO room_did FROM MeetingRooms WHERE floor_num = floornum AND room_num = roomnum;
-	IF d_id = room_did THEN INSERT INTO Updates (date, new_cap, floor_num, room_num, eid) VALUES (today_date, room_cap, floornum, roomnum, e_id);
+	IF d_id = room_did THEN 
+		IF (today_date, floornum, roomnum) IN (SELECT date, floor_num, room_num FROM Updates) 
+			THEN UPDATE Updates
+				 SET new_cap = room_cap, eid = e_id
+				 WHERE date = today_date AND floor_num = floornum AND room_num = roomnum; 
+		ELSE INSERT INTO Updates (date, new_cap, floor_num, room_num, eid) VALUES (today_date, room_cap, floornum, roomnum, e_id);
+		END IF;
 	ELSE 
 	END IF;
 END
