@@ -6,14 +6,21 @@ RETURNS TABLE(eid INT, days_recorded BIGINT) AS $$
 BEGIN
     RETURN QUERY
     SELECT hd.eid, COUNT(DISTINCT hd.date)
-    FROM HealthDeclarations hd 
-    WHERE date BETWEEN _start_date AND _end_date
-    GROUP BY hd.eid
-    HAVING COUNT(DISTINCT hd.date) < end_date - _start_date;
+    FROM (HealthDeclarations NATURAL JOIN Employees) AS hd
+    WHERE date BETWEEN _start_date 
+    AND 
+    (CASE 
+        WHEN hd.res_date IS NOT NULL AND hd.res_date < _end_date THEN hd.res_date
+        ELSE _end_date
+    END)
+    GROUP BY hd.eid, hd.res_date
+    HAVING COUNT(DISTINCT hd.date) < (CASE 
+        WHEN hd.res_date IS NOT NULL AND hd.res_date < _end_date THEN hd.res_date
+        ELSE _end_date
+    END) - _start_date;
 END;
 $$ LANGUAGE plpgsql;
 
-/* What value do we want for is_approved? */
 CREATE OR REPLACE FUNCTION view_booking_report
     (IN _start_date DATE, IN _eid INT)
 RETURNS TABLE(floor_num INT, room_num INT, date DATE, start_hour INT, is_approved BOOLEAN) AS $$
