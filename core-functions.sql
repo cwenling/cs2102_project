@@ -1,47 +1,38 @@
 -- search_room
 -- - returns all rooms available from [start_hour, end_hour)
 -- - sort in ascending order of capacity
--- TODO: confusing zzzz
+-- available = does not appear in Sessions (booker_id not null)
 
--- entire list of meeting rooms
--- EXCEPT
--- sessions w same date at query_start and query_end (BETWEEN)
+-- testcases to test:
+-- room is available
+-- room is unavailable
 CREATE OR REPLACE FUNCTION search_room
-    (IN query_cap INT, IN query_date DATE, IN query_start_hour TIME, IN query_end_hour TIME,
+    (IN query_cap INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT,
     OUT out_floor_num INT, OUT out_room_num INT, OUT out_did INT, OUT out_cap INT)
 RETURNS RECORD AS $$
-DECLARE
-    time_diff FLOAT := -1;
-    booker_eid INT := -1;
 BEGIN
-    time_diff := DATEDIFF(MINUTE, query_start_hour, query_end_hour) / 60.0;
-    WHILE time_diff >= 1 LOOP
-        SELECT floor_num INTO temp_floor_num
+    WITH UnavailableRooms AS (
+        SELECT floor_num, room_num
         FROM Sessions
         WHERE date = query_date
-        AND time = query_start_hour;
+        AND time BETWEEN query_start_hour AND query_end_hour - 1
+    ), AvailableRooms AS (
+        SELECT floor_num, room_num, did
+        FROM MeetingRooms m, UnavailableRooms u
+        WHERE m.floor_num <> u.floor_num
+        AND m.room_num <> u.room_num
+    )
+    
+    SELECT floor_num, room_num, did
+    INTO out_floor_num, out_room_num, out_did
+    FROM AvailableRooms;
 
-        SELECT room_num INTO temp_room_num
-        FROM Sessions
-        WHERE date = query_date
-        AND time = query_start_hour;
-
-        SELECT booker_id INTO booker_eid
-        FROM Sessions
-        WHERE date = query_date
-        AND time = query_start_hour;
-        
-        IF booker_eid <> -1 THEN
-            EXIT;
-        END IF;
-
-        query_start_hour := query_start_hour + 1;
-        time_diff := query_end_hour - query_start_hour;
-    END LOOP;
-
-    IF booker_eid = -1 THEN -- not booked
-        SELECT 
-    END IF;
+    SELECT new_cap
+    INTO out_cap
+    FROM Updates u, AvailableRooms a
+    WHERE u.floor_num = a.floor_num
+    AND u.room_num = a.room_num
+    ORDER BY new_cap;
 END;
 $$ LANGUAGE plpgsql
 
@@ -54,16 +45,24 @@ $$ LANGUAGE plpgsql
 -- 1. query_eid is a booker
 -- 2. query_eid is not having a fever
 -- 3. a room is available on query_date, from [query_start_hour, query_end_hour)
+
+-- testcases to test:
+-- when query_eid is a booker, not having fever, room is available for booking (1h) (can book)
+-- when query_eid is a booker, not having fever, room is available for booking (> 1h) (can book)
+-- when query_eid is not a booker (cannot book)
+-- when query_eid is a booker and having fever (cannot book)
+-- when query_eid is a booker, not having fever, room is not available for booking (1h) (cannot book)
+-- when query_eid is a booker, not having fever, room is not available for booking (> 1h) (cannot book)
 CREATE OR REPLACE FUNCTION book_room
-    (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour TIME, IN query_end_hour TIME, IN query_eid INT)
+    (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT, IN query_eid INT)
 RETURNS VOID AS $$
 DECLARE
-    time_diff FLOAT := -1;
+    time_diff INT := -1;
     booker_eid INT := -1;
     booker_temp NUMERIC := -1;
     is_room_avail INT := -1;
 BEGIN
-    time_diff := DATEDIFF(MINUTE, query_start_hour, query_end_hour) / 60.0;
+    time_diff := query_end_hour - query_start_hour;
     IF time_diff >= 1 THEN
         SELECT eid INTO booker_eid
         FROM Bookers
@@ -72,7 +71,7 @@ BEGIN
         IF booker_eid <> -1 THEN -- is a booker
             SELECT temp INTO booker_temp
             FROM HealthDeclarations
-            WHERE eid = booker_eid; -- TODO: do we need to check if date = query_date?
+            WHERE eid = booker_eid;
 
             IF booker_temp <= 37.5 THEN -- has no fever
                 SELECT COUNT(*) INTO is_room_avail FROM search_room(1, query_date, query_start_hour, query_end_hour);
@@ -100,14 +99,21 @@ $$ LANGUAGE plpgsql
 -- for example if the query is [10am, 12pm),
 -- and if query_eid only made a booking from [10am, 11am) OR query_eid made a booking from [10am, 1pm), this room will not be unbooked
 -- but if query_eid made a booking from [10am, 12pm), this room will be unbooked
+
+-- testcases to test:
+-- eid is valid, booking is not approved, no employees joining (can unbook)
+-- eid is valid, booking is not approved, employees joining (can unbook, remove employees)
+-- eid is valid, booking is approved, no employees joining (can unbook, remove approval)
+-- eid is valid, booking is approved, employees joining (can unbook, remove approval and employees)
+-- eid is invalid (cannot unbook)
 CREATE OR REPLACE FUNCTION unbook_room
-    (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour TIME, IN query_end_hour TIME, IN query_eid INT)
+    (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT, IN query_eid INT)
 RETURNS VOID AS $$
 DECLARE
-    temp_query_start_hour TIME := query_start_hour;
+    temp_query_start_hour INT := query_start_hour;
     booker_eid INT := -1;
     approval_eid INT := -1;
-    time_diff FLOAT := -1;
+    time_diff INT := -1;
 BEGIN
     -- check if it is the same booker from [query_start_hour, query_end_hour)
     -- if it is not, don't allow query_eid to unbook
@@ -141,7 +147,7 @@ BEGIN
             AND date = query_date
             AND time = temp_query_start_hour;
 
-            IF approval_eid <> -1 THEN
+            IF approval_eid <> -1 AND approval_eid IS NOT NULL THEN
                 -- remove approval
                 DELETE FROM Sessions
                 WHERE booker_id = booker_eid
@@ -168,21 +174,28 @@ $$ LANGUAGE plpgsql
 -- join_meeting
 -- - if employee is allowed to join
 -- - employee cannot join an approved meeting (meaning only booked meeting)
+
+-- testcases to test:
+-- eid is not having fever, room is not approved, capacity is enough (can join)
+-- eid is not having fever, room is not approved, capacity is not enough (cannot join)
+-- eid is not having fever, room is approved (cannot join)
+-- eid is having fever, room is not approved (cannot join)
+-- eid is having fever, room is approved (cannot join)
 CREATE OR REPLACE FUNCTION join_meeting
-    (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour TIME, IN query_end_hour TIME, IN query_eid INT)
+    (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT, IN query_eid INT)
 RETURNS VOID AS $$
 DECLARE
-    time_diff FLOAT := -1;
+    time_diff INT := -1;
     booker_temp NUMERIC := -1;
     approval_eid INT := -1;
     room_cap INT := -1;
     curr_participants INT := -1;
 BEGIN
-    time_diff := DATEDIFF(MINUTE, query_start_hour, query_end_hour) / 60.0;
+    time_diff := query_end_hour - query_start_hour;
     IF time_diff >= 1 THEN
         SELECT temp INTO booker_temp
         FROM HealthDeclarations
-        WHERE eid = query_eid; -- TODO: do we need to check if date = query_date? -- check current date
+        WHERE eid = query_eid;
 
         IF booker_temp <= 37.5 THEN
             WHILE time_diff >= 1 LOOP
@@ -193,7 +206,7 @@ BEGIN
                 AND date = query_date
                 AND time = query_start_hour;
 
-                IF approval_eid = -1 THEN
+                IF approval_eid IS NULL THEN
                     SELECT new_cap INTO room_cap
                     FROM Updates
                     WHERE floor_num = query_floor_num
@@ -224,15 +237,20 @@ $$ LANGUAGE plpgsql
 -- leave_meeting
 -- - if employee is not in meeting, don't do anything
 -- - employee is not allowed to leave an approved meeting (meaning only booked meeting)
+
+-- testcases to test:
+-- eid is not in meeting (don't do anything)
+-- eid is in meeting, meeting is not approved (can leave)
+-- eid is in meeting, meeting is approved (cannot leave)
 CREATE OR REPLACE FUNCTION leave_meeting
-    (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour TIME, IN query_end_hour TIME, IN query_eid INT)
+    (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT, IN query_eid INT)
 RETURNS VOID AS $$
 DECLARE
-    time_diff FLOAT := -1;
+    time_diff INT := -1;
     is_in_meeting INT := -1;
     approval_eid INT := -1;
 BEGIN
-    time_diff := DATEDIFF(MINUTE, query_start_hour, query_end_hour) / 60.0;
+    time_diff := query_end_hour - query_start_hour;
     WHILE time_diff >= 1 LOOP
         SELECT COUNT(*) INTO is_in_meeting
         FROM Joins
@@ -250,7 +268,7 @@ BEGIN
             AND date = query_date
             AND time = query_start_hour;
 
-            IF approval_eid = -1 THEN
+            IF approval_eid IS NULL THEN
                 DELETE FROM Joins
                 WHERE eid = query_eid
                 AND floor_num = query_floor_num
@@ -268,16 +286,20 @@ $$ LANGUAGE plpgsql
 -- approve_meeting
 -- - eid must be a manager
 -- - check if approval is allowed
+
+-- eid is manager, room belongs to same department as manager (can approve)
+-- eid is manager, room belongs to different department as manager (cannot approve)
+-- eid is not a manager (cannot approve)
 CREATE OR REPLACE FUNCTION approve_meeting
-    (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour TIME, IN query_end_hour TIME, IN query_eid INT)
+    (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT, IN query_eid INT)
 RETURNS VOID AS $$
 DECLARE
-    time_diff FLOAT := -1;
+    time_diff INT := -1;
     manager_eid INT := -1;
     manager_did INT := -1;
     room_did INT := -1;
 BEGIN
-    time_diff := DATEDIFF(MINUTE, query_start_hour, query_end_hour) / 60.0;
+    time_diff := query_end_hour - query_start_hour;
     WHILE time_diff >= 1 LOOP
         SELECT eid INTO manager_eid
         FROM Managers
@@ -299,7 +321,7 @@ BEGIN
                 WHERE floor_num = query_floor_num
                 AND room_num = query_room_num
                 AND date = query_date
-                AND time = query_start_hour; -- TODO: do we need to check booker_id?
+                AND time = query_start_hour;
             END IF;
         END IF;
         query_start_hour := query_start_hour + 1;
