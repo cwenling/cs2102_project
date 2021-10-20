@@ -11,13 +11,25 @@ CREATE OR REPLACE FUNCTION search_room
     OUT out_floor_num INT, OUT out_room_num INT, OUT out_did INT, OUT out_cap INT)
 RETURNS RECORD AS $$
 BEGIN
+    -- CREATE VIEW UnavailableRooms AS
+    --     SELECT floor_num, room_num
+    --     FROM Sessions
+    --     WHERE date = query_date
+    --     AND time BETWEEN query_start_hour AND query_end_hour - 1;
+    
+    -- CREATE VIEW AvailableRooms AS
+    --     SELECT floor_num, room_num, did
+    --     FROM MeetingRooms m, UnavailableRooms u
+    --     WHERE m.floor_num <> u.floor_num
+    --     AND m.room_num <> u.room_num;
+
     WITH UnavailableRooms AS (
         SELECT floor_num, room_num
         FROM Sessions
         WHERE date = query_date
         AND time BETWEEN query_start_hour AND query_end_hour - 1
     ), AvailableRooms AS (
-        SELECT floor_num, room_num, did
+        SELECT m.floor_num, m.room_num, m.did
         FROM MeetingRooms m, UnavailableRooms u
         WHERE m.floor_num <> u.floor_num
         AND m.room_num <> u.room_num
@@ -32,6 +44,7 @@ BEGIN
     FROM Updates u, AvailableRooms a
     WHERE u.floor_num = a.floor_num
     AND u.room_num = a.room_num
+    AND new_cap >= query_cap
     ORDER BY new_cap;
 END;
 $$ LANGUAGE plpgsql
@@ -46,22 +59,37 @@ $$ LANGUAGE plpgsql
 -- 2. query_eid is not having a fever
 -- 3. a room is available on query_date, from [query_start_hour, query_end_hour)
 
+-- TODO CANNOT TEST UNTIL SEARCH_ROOM IS OK
+
 -- testcases to test:
 -- when query_eid is a booker, not having fever, room is available for booking (1h) (can book)
+-- book_room(1, 1, '2021-10-20', 12, 13, 51)
+
 -- when query_eid is a booker, not having fever, room is available for booking (> 1h) (can book)
+-- book_room(1, 1, '2021-10-21', 12, 15, 51)
+
 -- when query_eid is not a booker (cannot book)
+-- book_room(1, 1, '2021-10-21', 12, 15, 1)
+
 -- when query_eid is a booker and having fever (cannot book)
+-- book_room(1, 1, '2021-10-21', 12, 15, 52)
+
 -- when query_eid is a booker, not having fever, room is not available for booking (1h) (cannot book)
+-- book_room(1, 4, '2021-10-13', 0, 1, 51)
+
 -- when query_eid is a booker, not having fever, room is not available for booking (> 1h) (cannot book)
+-- book_room(1, 4, '2021-10-13', 0, 1, 51)
 CREATE OR REPLACE FUNCTION book_room
     (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT, IN query_eid INT)
 RETURNS VOID AS $$
 DECLARE
+    today_date DATE := NULL;
     time_diff INT := -1;
     booker_eid INT := -1;
     booker_temp NUMERIC := -1;
     is_room_avail INT := -1;
 BEGIN
+    SELECT CURRENT_DATE INTO today_date;
     time_diff := query_end_hour - query_start_hour;
     IF time_diff >= 1 THEN
         SELECT eid INTO booker_eid
@@ -71,7 +99,8 @@ BEGIN
         IF booker_eid <> -1 THEN -- is a booker
             SELECT temp INTO booker_temp
             FROM HealthDeclarations
-            WHERE eid = booker_eid;
+            WHERE eid = booker_eid
+            AND date = today_date;
 
             IF booker_temp <= 37.5 THEN -- has no fever
                 SELECT COUNT(*) INTO is_room_avail FROM search_room(1, query_date, query_start_hour, query_end_hour);
@@ -91,21 +120,23 @@ END;
 $$ LANGUAGE plpgsql
 
 -- unbook_room
--- - eid must be the employee who did the booking
--- - if booking is approved, remove approval
--- - if there are employees already joining, remove them
 -- assumptions made:
 -- this function is to unbook a meeting room on query_date, from [query_start_hour, query_end_hour) and on query_date only made by query_eid
 -- for example if the query is [10am, 12pm),
 -- and if query_eid only made a booking from [10am, 11am) OR query_eid made a booking from [10am, 1pm), this room will not be unbooked
 -- but if query_eid made a booking from [10am, 12pm), this room will be unbooked
+-- once a room is unbooked, it is removed from Sessions table
 
+-- ALL TESTED EXCEPT >1H
 -- testcases to test:
--- eid is valid, booking is not approved, no employees joining (can unbook)
--- eid is valid, booking is not approved, employees joining (can unbook, remove employees)
--- eid is valid, booking is approved, no employees joining (can unbook, remove approval)
--- eid is valid, booking is approved, employees joining (can unbook, remove approval and employees)
+-- eid is valid, booking is not approved (can unbook, remove from sessions, remove employees)
+-- unbook_room(2, 7, '2021-10-15', 2, 3, 91)
+
+-- eid is valid, booking is approved (can unbook, remove from sessions, remove employees)
+-- unbook_room(2, 3, '2021-10-14', 10, 11, 81)
+
 -- eid is invalid (cannot unbook)
+-- unbook_room(2, 3, '2021-10-14', 10, 11, 82)
 CREATE OR REPLACE FUNCTION unbook_room
     (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT, IN query_eid INT)
 RETURNS VOID AS $$
@@ -147,8 +178,9 @@ BEGIN
             AND date = query_date
             AND time = temp_query_start_hour;
 
-            IF approval_eid <> -1 AND approval_eid IS NOT NULL THEN
-                -- remove approval
+            -- remove from Sessions regardless of whether the meeting is approved or not
+            -- this will help remove participants from Joins too
+            IF approval_eid <> -1 OR approval_eid IS NULL THEN
                 DELETE FROM Sessions
                 WHERE booker_id = booker_eid
                 AND floor_num = query_floor_num
@@ -157,13 +189,6 @@ BEGIN
                 AND time = temp_query_start_hour;
             END IF;
 
-            -- remove participants
-            DELETE FROM Joins
-            WHERE floor_num = query_floor_num
-            AND room_num = query_room_num
-            AND date = query_date
-            AND time = temp_query_start_hour;
-
             temp_query_start_hour := temp_query_start_hour + 1;
             time_diff := query_end_hour - temp_query_start_hour;
         END LOOP;
@@ -171,31 +196,37 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql
 
--- join_meeting
--- - if employee is allowed to join
--- - employee cannot join an approved meeting (meaning only booked meeting)
-
+-- ALL TESTED EXCEPT FOR >1H
 -- testcases to test:
 -- eid is not having fever, room is not approved, capacity is enough (can join)
+-- join_meeting(1, 2, '2021-10-13', 3, 4, 51)
+
 -- eid is not having fever, room is not approved, capacity is not enough (cannot join)
+-- join_meeting(2, 9, '2021-10-17', 3, 4, 51)
+
 -- eid is not having fever, room is approved (cannot join)
--- eid is having fever, room is not approved (cannot join)
--- eid is having fever, room is approved (cannot join)
+-- join_meeting(2, 3, '2021-10-14', 10, 11, 48)
+
+-- eid is having fever (cannot join)
+-- join_meeting(2, 9, '2021-10-14', 23, 24, 52)
 CREATE OR REPLACE FUNCTION join_meeting
     (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT, IN query_eid INT)
 RETURNS VOID AS $$
 DECLARE
+    today_date DATE := NULL;
     time_diff INT := -1;
     booker_temp NUMERIC := -1;
     approval_eid INT := -1;
     room_cap INT := -1;
     curr_participants INT := -1;
 BEGIN
+    SELECT CURRENT_DATE INTO today_date;
     time_diff := query_end_hour - query_start_hour;
     IF time_diff >= 1 THEN
         SELECT temp INTO booker_temp
         FROM HealthDeclarations
-        WHERE eid = query_eid;
+        WHERE eid = query_eid
+        AND date = today_date;
 
         IF booker_temp <= 37.5 THEN
             WHILE time_diff >= 1 LOOP
@@ -234,14 +265,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql
 
--- leave_meeting
--- - if employee is not in meeting, don't do anything
--- - employee is not allowed to leave an approved meeting (meaning only booked meeting)
-
+-- ALL TESTED EXCEPT FOR >1H
 -- testcases to test:
 -- eid is not in meeting (don't do anything)
+-- leave_meeting(2, 9, '2021-10-20', 0, 1, 1)
+
 -- eid is in meeting, meeting is not approved (can leave)
+-- leave_meeting(1, 4, '2021-10-13', 0, 1, 9)
+
 -- eid is in meeting, meeting is approved (cannot leave)
+-- leave_meeting(2, 3, '2021-10-14', 10, 11, 51)
 CREATE OR REPLACE FUNCTION leave_meeting
     (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT, IN query_eid INT)
 RETURNS VOID AS $$
@@ -283,13 +316,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql
 
--- approve_meeting
--- - eid must be a manager
--- - check if approval is allowed
-
+-- ALL TESTED EXCEPT >1H
+-- testcases to test:
 -- eid is manager, room belongs to same department as manager (can approve)
+-- approve_meeting(2, 3, '2021-10-14', 10, 11, 93)
+
 -- eid is manager, room belongs to different department as manager (cannot approve)
+-- approve_meeting(2, 5, '2021-10-14', 22, 23, 86)
+
 -- eid is not a manager (cannot approve)
+-- approve_meeting(2, 5, '2021-10-14', 22, 23, 1)
 CREATE OR REPLACE FUNCTION approve_meeting
     (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT, IN query_eid INT)
 RETURNS VOID AS $$

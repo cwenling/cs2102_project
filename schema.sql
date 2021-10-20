@@ -87,6 +87,6 @@ CREATE TABLE Joins (
     room_num     INTEGER,
     PRIMARY KEY (eid, time, date, floor_num, room_num),
     FOREIGN KEY (time, date, floor_num, room_num) 
-        REFERENCES Sessions (time, date, floor_num, room_num),
+        REFERENCES Sessions (time, date, floor_num, room_num) ON DELETE CASCADE,
     FOREIGN KEY (eid) REFERENCES Employees (eid)
 );
