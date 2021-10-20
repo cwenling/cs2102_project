@@ -3,6 +3,10 @@ CREATE OR REPLACE FUNCTION add_department (IN id INT, IN name TEXT) RETURNS VOID
 $$
 BEGIN
 	INSERT INTO Departments (did, dname) VALUES (id, name);
+
+EXCEPTION 
+	WHEN unique_violation THEN RAISE EXCEPTION 'This ID already exists!';
+
 END
 $$ 
 	LANGUAGE plpgsql;
@@ -12,8 +16,15 @@ $$
 CREATE OR REPLACE FUNCTION remove_department (IN id INT) RETURNS VOID AS 
 $$
 BEGIN
-	DELETE FROM Departments
-	WHERE did = id;
+	IF id IN (SELECT did FROM Departments) 
+		THEN DELETE FROM Departments WHERE did = id;
+	ELSE RAISE EXCEPTION USING
+		errcode='NODID';
+	END IF;
+
+EXCEPTION 
+	WHEN sqlstate 'NODID' THEN RAISE EXCEPTION 'This ID does not exist!';
+	
 END
 $$ 
 	LANGUAGE plpgsql;
@@ -30,6 +41,10 @@ BEGIN
 	SELECT did INTO d_id FROM Employees WHERE eid = e_id;
 	INSERT INTO MeetingRooms (floor_num, room_num, rname, did) VALUES (floornum, roomnum, room_name, d_id);
 	INSERT INTO Updates (date, new_cap, floor_num, room_num, eid) VALUES (today_date, room_cap, floornum, roomnum, e_id);
+
+EXCEPTION 
+	WHEN unique_violation THEN RAISE EXCEPTION 'This meeting room already exists!';
+
 END
 $$ 
 	LANGUAGE plpgsql;
@@ -77,14 +92,21 @@ BEGIN
 	
 	INSERT INTO Employees VALUES (e_id, name, home_con, mobile_con, office_con, g_email, null, d_id);
 	
-	IF type = 'junior' THEN INSERT INTO Juniors VALUES (e_id);
-	ELSE INSERT INTO Bookers VALUES (e_id);
+	IF type = 'junior' THEN 
+		INSERT INTO Juniors VALUES (e_id);
+	ELSIF type = 'senior' THEN 
+		INSERT INTO Bookers VALUES (e_id);
+		INSERT INTO Seniors VALUES (e_id);
+	ELSIF type = 'manager' THEN 
+		INSERT INTO Bookers VALUES (e_id);
+		INSERT INTO Managers VALUES (e_id);
+	ELSE RAISE EXCEPTION USING
+		errcode='INVAL';
 	END IF;
 	
-	IF type = 'senior' THEN INSERT INTO Seniors VALUES (e_id);
-	ELSIF type = 'manager' THEN INSERT INTO Managers VALUES (e_id);
-	ELSE
-	END IF;
+EXCEPTION 
+	WHEN sqlstate 'INVAL' THEN RAISE EXCEPTION 'This employee type does not exist!';
+	
 END
 $$ 
 	LANGUAGE plpgsql;
@@ -94,7 +116,15 @@ CREATE OR REPLACE FUNCTION remove_employee
 	(IN e_id INT, IN date DATE) RETURNS VOID AS 
 $$
 BEGIN
-	UPDATE Employees SET res_date = date WHERE eid = e_id;
+	IF e_id IN (SELECT eid FROM Employees) THEN
+		UPDATE Employees SET res_date = date WHERE eid = e_id;
+	ELSE RAISE EXCEPTION USING
+		errcode = 'NOEID';
+	END IF;
+
+EXCEPTION 
+	WHEN sqlstate 'NOEID' THEN RAISE EXCEPTION 'This Employee ID does not exist!';
+	
 END
 $$ 
 	LANGUAGE plpgsql;
