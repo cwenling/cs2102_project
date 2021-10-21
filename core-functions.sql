@@ -7,33 +7,20 @@
 -- room is available
 -- room is unavailable
 CREATE OR REPLACE FUNCTION search_room
-    (IN query_cap INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT,
-    OUT out_floor_num INT, OUT out_room_num INT, OUT out_did INT, OUT out_cap INT)
-RETURNS RECORD AS $$
+    (IN query_cap INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT)
+RETURNS TABLE(out_floor_num INT, out_room_num INT, out_did INT, out_cap INT) AS $$
+DECLARE
+    room_cap INT := -1;
 BEGIN
-    -- CREATE VIEW UnavailableRooms AS
-    --     SELECT floor_num, room_num
-    --     FROM Sessions
-    --     WHERE date = query_date
-    --     AND time BETWEEN query_start_hour AND query_end_hour - 1;
-    
-    -- CREATE VIEW AvailableRooms AS
-    --     SELECT floor_num, room_num, did
-    --     FROM MeetingRooms m, UnavailableRooms u
-    --     WHERE m.floor_num <> u.floor_num
-    --     AND m.room_num <> u.room_num;
-
-    WITH UnavailableRooms AS (
-        SELECT floor_num, room_num
-        FROM Sessions
-        WHERE date = query_date
-        AND time BETWEEN query_start_hour AND query_end_hour - 1
-    ), AvailableRooms AS (
-        SELECT m.floor_num, m.room_num, m.did
-        FROM MeetingRooms m, UnavailableRooms u
-        WHERE m.floor_num <> u.floor_num
-        AND m.room_num <> u.room_num
-    )
+    CREATE TEMP TABLE AvailableRooms ON COMMIT DROP AS
+    SELECT DISTINCT m.floor_num, m.room_num, m.did
+    FROM MeetingRooms m
+    WHERE (m.floor_num, m.room_num) NOT IN (
+        SELECT s.floor_num, s.room_num
+        FROM Sessions s
+        WHERE s.date = query_date
+        AND s.time BETWEEN query_start_hour AND query_end_hour - 1
+    );
     
     SELECT floor_num, room_num, did
     INTO out_floor_num, out_room_num, out_did
@@ -44,10 +31,17 @@ BEGIN
     FROM Updates u, AvailableRooms a
     WHERE u.floor_num = a.floor_num
     AND u.room_num = a.room_num
+    AND new_cap = (SELECT new_cap
+                    FROM Updates u2
+                    WHERE u2.floor_num = u.floor_num
+                    AND u2.room_num = u.room_num
+                    AND u2.date <= query_date
+                    ORDER BY u2.date DESC -- take the latest updated cap
+                    LIMIT 1)
     AND new_cap >= query_cap
     ORDER BY new_cap;
 END;
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
 -- book_room
 -- - A senior employee or a manager books a room by specifying the room and the session.
@@ -117,7 +111,7 @@ BEGIN
         END IF;
     END IF;
 END;
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
 -- unbook_room
 -- assumptions made:
@@ -194,7 +188,7 @@ BEGIN
         END LOOP;
     END IF;
 END;
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
 -- ALL TESTED EXCEPT FOR >1H
 -- testcases to test:
@@ -263,7 +257,7 @@ BEGIN
         END IF;
     END IF;
 END;
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
 -- ALL TESTED EXCEPT FOR >1H
 -- testcases to test:
@@ -314,7 +308,7 @@ BEGIN
         time_diff := query_end_hour - query_start_hour;
     END LOOP;
 END;
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
 
 -- ALL TESTED EXCEPT >1H
 -- testcases to test:
@@ -364,4 +358,4 @@ BEGIN
         time_diff := query_end_hour - query_start_hour;
     END LOOP;
 END;
-$$ LANGUAGE plpgsql
+$$ LANGUAGE plpgsql;
