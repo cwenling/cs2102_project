@@ -69,8 +69,13 @@ BEGIN
 				 WHERE date = today_date AND floor_num = floornum AND room_num = roomnum; 
 		ELSE INSERT INTO Updates (date, new_cap, floor_num, room_num, eid) VALUES (today_date, room_cap, floornum, roomnum, e_id);
 		END IF;
-	ELSE 
+	ELSE RAISE EXCEPTION USING
+		errcode='NODID';
 	END IF;
+	
+EXCEPTION 
+	WHEN sqlstate 'NODID' THEN RAISE EXCEPTION 'Only employees from the same department as the room can change the capacity!';
+	
 END
 $$ 
 	LANGUAGE plpgsql;
