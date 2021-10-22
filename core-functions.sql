@@ -1,16 +1,6 @@
--- testcases to test:
--- 1h only
--- search_room(20, '2021-10-21', 0, 1) - all rooms with capacity >= 20 will be included in result
--- search_room(10, '2021-10-13', 0, 1) - room(1,4) should not be in result
--- search_room(20, '2021-10-15', 2, 3) - room(2,7) should not be in result
-
--- >1h
--- search_room(20, '2021-10-21', 0, 3) - all rooms with capacity >= 20 will be included in result
--- search_room(10, '2021-10-13', 0, 7) - room(1,2) and (1,4) should not be in result
--- search_room(10, '2021-10-15', 0, 24) - room(2,1) and (2,7) should not be in result
 CREATE OR REPLACE FUNCTION search_room
     (IN query_cap INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT)
-RETURNS TABLE(out_floor_num INT, out_room_num INT, out_did INT, out_cap INT) AS $$
+RETURNS TABLE(floor_num INT, room_num INT, did INT, cap INT) AS $$
 BEGIN
     CREATE TEMP TABLE AvailableRooms ON COMMIT DROP AS
     SELECT DISTINCT m.floor_num, m.room_num, m.did
@@ -39,24 +29,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- testcases to test:
+-- testcases:
 -- when query_eid is a booker, not having fever, room is available for booking (1h) (can book)
--- book_room(1, 2, '2021-10-20', 12, 13, 51)
-
 -- when query_eid is a booker, not having fever, room is available for booking (> 1h) (can book)
--- book_room(1, 1, '2021-10-21', 14, 17, 51)
-
 -- when query_eid is not a booker (cannot book)
--- book_room(1, 1, '2021-10-21', 12, 15, 1)
-
 -- when query_eid is a booker and having fever (cannot book)
--- book_room(1, 1, '2021-10-22', 12, 15, 52)
-
 -- when query_eid is a booker, not having fever, room is not available for booking (1h) (cannot book)
--- book_room(1, 4, '2021-10-13', 0, 1, 51) - will have duplicate key value error
-
 -- when query_eid is a booker, not having fever, room is not available for booking (> 1h) (cannot book)
--- book_room(1, 1, '2021-10-21', 14, 16, 51) - will have duplicate key value error
 CREATE OR REPLACE FUNCTION book_room
     (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT, IN query_eid INT)
 RETURNS VOID AS $$
@@ -67,6 +46,10 @@ DECLARE
     booker_temp NUMERIC := -1;
     is_room_avail INT := -1;
 BEGIN
+    IF query_eid NOT IN (SELECT eid FROM Bookers WHERE eid = query_eid)
+        THEN RAISE EXCEPTION USING errcode='NOBKR';
+    END IF;
+
     SELECT CURRENT_DATE INTO today_date;
     time_diff := query_end_hour - query_start_hour;
     IF time_diff >= 1 THEN
@@ -74,43 +57,41 @@ BEGIN
         FROM Bookers
         WHERE eid = query_eid;
 
-        IF booker_eid <> -1 THEN -- is a booker
-            SELECT temp INTO booker_temp
-            FROM HealthDeclarations
-            WHERE eid = booker_eid
-            AND date = today_date;
+        SELECT temp INTO booker_temp
+        FROM HealthDeclarations
+        WHERE eid = booker_eid
+        AND date = today_date;
 
-            IF booker_temp <= 37.5 THEN -- has no fever
-                SELECT COUNT(*) INTO is_room_avail FROM search_room(1, query_date, query_start_hour, query_end_hour);
-
-                IF is_room_avail <> 0 THEN -- room is avail
+        IF booker_temp <= 37.5 THEN -- has no fever
+            SELECT COUNT(*) INTO is_room_avail FROM search_room(1, query_date, query_start_hour, query_end_hour);
+            IF is_room_avail <> 0 THEN -- room is avail
+                time_diff := query_end_hour - query_start_hour;
+                WHILE time_diff >= 1 LOOP
+                    INSERT INTO Sessions (time, date, floor_num, room_num, booker_id) VALUES (query_start_hour, query_date, query_floor_num, query_room_num, query_eid);
+                    INSERT INTO Joins (eid, time, date, floor_num, room_num) VALUES (booker_eid, query_start_hour, query_date, query_floor_num, query_room_num);
+                    query_start_hour := query_start_hour + 1;
                     time_diff := query_end_hour - query_start_hour;
-                    WHILE time_diff >= 1 LOOP
-                        INSERT INTO Sessions (time, date, floor_num, room_num, booker_id) VALUES (query_start_hour, query_date, query_floor_num, query_room_num, query_eid);
-                        query_start_hour := query_start_hour + 1;
-                        time_diff := query_end_hour - query_start_hour;
-                    END LOOP;
-                END IF;
+                END LOOP;
+            END IF;
+        ELSE
+            IF booker_temp > 37.5 THEN RAISE EXCEPTION USING errcode='FEVER'; -- having fever
+            ELSE RAISE EXCEPTION USING errcode='NODEC'; -- no health declaration today
             END IF;
         END IF;
     END IF;
+
+EXCEPTION
+    WHEN sqlstate 'NOBKR' THEN RAISE EXCEPTION 'This ID is not a Booker, cannot book any rooms!';
+    WHEN sqlstate 'NODEC' THEN RAISE EXCEPTION 'This Booker has not made any health declaration today, cannot book any rooms!';
+    WHEN sqlstate 'FEVER' THEN RAISE EXCEPTION 'This Booker is having a fever, cannot book any rooms!';
+    WHEN unique_violation THEN RAISE EXCEPTION 'This room is not available, cannot book!';
 END;
 $$ LANGUAGE plpgsql;
 
--- testcases to test:
+-- testcases:
 -- eid is valid, booking is not approved (can unbook, remove from sessions, remove employees)
--- unbook_room(2, 7, '2021-10-15', 2, 3, 91)
--- unbook_room(1, 2, '2021-10-13', 3, 7, 51) -- doesn't unbook since it is not the same eid that booked all these meeting rooms
--- unbook_room(1, 2, '2021-10-13', 3, 6, 51) -- unbooks
-
 -- eid is valid, booking is approved (can unbook, remove from sessions, remove employees)
--- unbook_room(2, 3, '2021-10-14', 10, 11, 81)
--- unbook_room(1, 1, '2021-10-21', 11, 18, 51) - meeting room from 14-17, doesnt get unbooked
--- unbook_room(1, 1, '2021-10-21', 14, 17, 51)
-
 -- eid is invalid (cannot unbook)
--- unbook_room(2, 3, '2021-10-14', 10, 11, 82)
--- unbook_room(1, 1, '2021-10-21', 11, 18, 91)
 CREATE OR REPLACE FUNCTION unbook_room
     (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT, IN query_eid INT)
 RETURNS VOID AS $$
@@ -120,9 +101,24 @@ DECLARE
     approval_eid INT := -1;
     time_diff INT := -1;
 BEGIN
-    -- check if it is the same booker from [query_start_hour, query_end_hour)
-    -- if it is not, don't allow query_eid to unbook
     time_diff := query_end_hour - temp_query_start_hour;
+    WHILE time_diff >= 1 LOOP
+        IF (query_floor_num, query_room_num, query_date, temp_query_start_hour)
+            NOT IN (SELECT floor_num, room_num, date, time
+                    FROM Sessions
+                    WHERE query_floor_num = floor_num
+                    AND query_room_num = room_num
+                    AND query_date = date
+                    AND temp_query_start_hour = time)
+            THEN RAISE EXCEPTION USING errcode='NOEXT';
+        END IF;
+        temp_query_start_hour := temp_query_start_hour + 1;
+        time_diff := query_end_hour - temp_query_start_hour;
+    END LOOP;
+
+    temp_query_start_hour := query_start_hour;
+    time_diff := query_end_hour - temp_query_start_hour;
+
     WHILE time_diff >= 1 LOOP
         SELECT booker_id INTO booker_eid
         FROM Sessions
@@ -131,9 +127,8 @@ BEGIN
         AND date = query_date
         AND time = temp_query_start_hour;
 
-        IF booker_eid <> query_eid THEN -- not the same booker who booked the room from [query_start_hour, query_end_hour)
-            booker_eid := -1;
-            EXIT;
+         -- not the same booker who booked the room from [query_start_hour, query_end_hour)
+        IF booker_eid <> query_eid THEN RAISE EXCEPTION USING errcode='NOBKR';
         END IF;
 
         temp_query_start_hour := temp_query_start_hour + 1;
@@ -167,55 +162,73 @@ BEGIN
             time_diff := query_end_hour - temp_query_start_hour;
         END LOOP;
     END IF;
+
+EXCEPTION
+    WHEN sqlstate 'NOEXT' THEN RAISE EXCEPTION 'There is no booked session for the entire period of time, cannot unbook!';
+    WHEN sqlstate 'NOBKR' THEN RAISE EXCEPTION 'This ID is not the Booker for the room, cannot unbook!';
 END;
 $$ LANGUAGE plpgsql;
 
--- testcases to test:
+-- testcases:
 -- eid is not having fever, room is not approved, capacity is enough (can join)
--- join_meeting(1, 2, '2021-10-13', 3, 4, 51)
--- join_meeting(1, 1, '2021-10-21', 14, 16, 1)
--- join_meeting(1, 1, '2021-10-21', 14, 18, 2) -- there is no sessions from 17-18 so eid can't join
-
 -- eid is not having fever, room is not approved, capacity is not enough (cannot join)
--- join_meeting(1, 1, '2021-10-21', 14, 15, 51)
--- join_meeting(1, 1, '2021-10-21', 14, 17, 51)
-
 -- eid is not having fever, room is approved (cannot join)
--- join_meeting(2, 9, '2021-10-14', 23, 24, 51)
--- join_meeting(1, 1, '2021-10-21', 14, 17, 3)
-
 -- eid is having fever (cannot join)
--- join_meeting(2, 9, '2021-10-14', 23, 24, 52)
--- join_meeting(1, 4, '2021-10-21', 14, 16, 52)
-
--- maybe need to add trigger to check if query_eid is a booker for that session
 CREATE OR REPLACE FUNCTION join_meeting
     (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT, IN query_eid INT)
 RETURNS VOID AS $$
 DECLARE
+    temp_query_start_hour INT := query_start_hour;
     today_date DATE := NULL;
     time_diff INT := -1;
-    booker_temp NUMERIC := -1;
+    emp_temp NUMERIC := -1;
     approval_eid INT := -1;
     room_cap INT := -1;
     curr_participants INT := -1;
 BEGIN
+    time_diff := query_end_hour - temp_query_start_hour;
+    WHILE time_diff >= 1 LOOP
+        IF query_eid IN (SELECT eid 
+                        FROM Joins
+                        WHERE query_floor_num = floor_num
+                        AND query_room_num = room_num
+                        AND query_date = date
+                        AND temp_query_start_hour = time)
+            THEN RAISE EXCEPTION USING errcode='BOOKR';
+        END IF;
+
+        IF (query_floor_num, query_room_num, query_date, temp_query_start_hour)
+            NOT IN (SELECT floor_num, room_num, date, time
+                    FROM Sessions
+                    WHERE query_floor_num = floor_num
+                    AND query_room_num = room_num
+                    AND query_date = date
+                    AND temp_query_start_hour = time)
+            THEN RAISE EXCEPTION USING errcode='NOEXT';
+        END IF;
+
+        temp_query_start_hour := temp_query_start_hour + 1;
+        time_diff := query_end_hour - temp_query_start_hour;
+    END LOOP;
+
+    temp_query_start_hour := query_start_hour;
+    time_diff := query_end_hour - temp_query_start_hour;
+
     SELECT CURRENT_DATE INTO today_date;
-    time_diff := query_end_hour - query_start_hour;
     IF time_diff >= 1 THEN
-        SELECT temp INTO booker_temp
+        SELECT temp INTO emp_temp
         FROM HealthDeclarations
         WHERE eid = query_eid
         AND date = today_date;
 
-        IF booker_temp <= 37.5 THEN
+        IF emp_temp <= 37.5 THEN
             WHILE time_diff >= 1 LOOP
                 SELECT approval_id INTO approval_eid
                 FROM Sessions
                 WHERE floor_num = query_floor_num
                 AND room_num = query_room_num
                 AND date = query_date
-                AND time = query_start_hour;
+                AND time = temp_query_start_hour;
 
                 IF approval_eid IS NULL THEN
                     SELECT new_cap INTO room_cap
@@ -231,41 +244,66 @@ BEGIN
                     WHERE floor_num = query_floor_num
                     AND room_num = query_room_num
                     AND date = query_date
-                    AND time = query_start_hour;
+                    AND time = temp_query_start_hour;
 
-                    IF room_cap - curr_participants - 1 > 0 THEN -- -1 because the booker is also considered a participant
-                        INSERT INTO Joins (eid, time, date, floor_num, room_num) VALUES (query_eid, query_start_hour, query_date, query_floor_num, query_room_num);
+                    IF room_cap - curr_participants > 0 THEN
+                        INSERT INTO Joins (eid, time, date, floor_num, room_num) VALUES (query_eid, temp_query_start_hour, query_date, query_floor_num, query_room_num);
+                    ELSE RAISE EXCEPTION USING errcode='NOCAP';
                     END IF;
+                ELSE RAISE EXCEPTION USING errcode='APPRV';
                 END IF;
-                query_start_hour := query_start_hour + 1;
-                time_diff := query_end_hour - query_start_hour;
+
+                temp_query_start_hour := temp_query_start_hour + 1;
+                time_diff := query_end_hour - temp_query_start_hour;
             END LOOP;
+        ELSE
+            IF emp_temp > 37.5 THEN RAISE EXCEPTION USING errcode='FEVER';
+            ELSE RAISE EXCEPTION USING errcode='NODEC';
+            END IF;
         END IF;
     END IF;
+
+EXCEPTION
+    WHEN sqlstate 'BOOKR' THEN RAISE EXCEPTION 'This ID is the Booker for the meeting, already joined!';
+    WHEN sqlstate 'NOEXT' THEN RAISE EXCEPTION 'There is no booked session for the entire period of time, cannot join!';
+    WHEN sqlstate 'NOCAP' THEN RAISE EXCEPTION 'There is not enough capacity, cannot join!';
+    WHEN sqlstate 'APPRV' THEN RAISE EXCEPTION 'The meeting is already approved, cannot join!';
+    WHEN sqlstate 'FEVER' THEN RAISE EXCEPTION 'This ID is having a fever, cannot join any rooms!';
+    WHEN sqlstate 'NODEC' THEN RAISE EXCEPTION 'This ID has not made any health declaration today, cannot join any rooms!';
 END;
 $$ LANGUAGE plpgsql;
 
--- testcases to test:
+-- testcases:
 -- eid is not in meeting (don't do anything)
--- leave_meeting(2, 9, '2021-10-20', 0, 1, 1)
--- leave_meeting(2, 9, '2021-10-20', 0, 5, 1)
-
 -- eid is in meeting, meeting is not approved (can leave)
--- leave_meeting(1, 4, '2021-10-13', 0, 1, 9)
--- leave_meeting(1, 4, '2021-10-21', 12, 18, 1) - even though there is no meeting from 12-14, 16-18, eid is removed from 14-16 meeting
-
 -- eid is in meeting, meeting is approved (cannot leave)
--- leave_meeting(2, 3, '2021-10-14', 10, 11, 51)
--- leave_meeting(1, 1, '2021-10-21', 14, 17, 1)
 CREATE OR REPLACE FUNCTION leave_meeting
     (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT, IN query_eid INT)
 RETURNS VOID AS $$
 DECLARE
+    temp_query_start_hour INT := query_start_hour;
     time_diff INT := -1;
     is_in_meeting INT := -1;
     approval_eid INT := -1;
 BEGIN
-    time_diff := query_end_hour - query_start_hour;
+    time_diff := query_end_hour - temp_query_start_hour;
+    WHILE time_diff >= 1 LOOP
+        IF (query_floor_num, query_room_num, query_date, temp_query_start_hour)
+            NOT IN (SELECT floor_num, room_num, date, time
+                    FROM Sessions
+                    WHERE query_floor_num = floor_num
+                    AND query_room_num = room_num
+                    AND query_date = date
+                    AND temp_query_start_hour = time)
+            THEN RAISE EXCEPTION USING errcode='NOEXT';
+        END IF;
+        temp_query_start_hour := temp_query_start_hour + 1;
+        time_diff := query_end_hour - temp_query_start_hour;
+    END LOOP;
+
+    temp_query_start_hour := query_start_hour;
+    time_diff := query_end_hour - temp_query_start_hour;
+
     WHILE time_diff >= 1 LOOP
         SELECT COUNT(*) INTO is_in_meeting
         FROM Joins
@@ -273,7 +311,7 @@ BEGIN
         AND floor_num = query_floor_num
         AND room_num = query_room_num
         AND date = query_date
-        AND time = query_start_hour;
+        AND time = temp_query_start_hour;
 
         IF is_in_meeting > 0 THEN
             SELECT approval_id INTO approval_eid
@@ -281,7 +319,7 @@ BEGIN
             WHERE floor_num = query_floor_num
             AND room_num = query_room_num
             AND date = query_date
-            AND time = query_start_hour;
+            AND time = temp_query_start_hour;
 
             IF approval_eid IS NULL THEN
                 DELETE FROM Joins
@@ -289,37 +327,58 @@ BEGIN
                 AND floor_num = query_floor_num
                 AND room_num = query_room_num
                 AND date = query_date
-                AND time = query_start_hour;
+                AND time = temp_query_start_hour;
+            ELSE RAISE EXCEPTION USING errcode='APPRV';
             END IF;
+        ELSE RAISE EXCEPTION USING errcode='NOMTG';
         END IF;
-        query_start_hour := query_start_hour + 1;
-        time_diff := query_end_hour - query_start_hour;
+        temp_query_start_hour := temp_query_start_hour + 1;
+        time_diff := query_end_hour - temp_query_start_hour;
     END LOOP;
+
+EXCEPTION
+    WHEN sqlstate 'NOEXT' THEN RAISE EXCEPTION 'There is no booked session for the entire period of time, cannot leave!';
+    WHEN sqlstate 'APPRV' THEN RAISE EXCEPTION 'The meeting is already approved, cannot leave!';
+    WHEN sqlstate 'NOMTG' THEN RAISE EXCEPTION 'This ID is not in the meeting, not leaving!';
 END;
 $$ LANGUAGE plpgsql;
 
--- testcases to test:
+-- testcases:
 -- eid is manager, room belongs to same department as manager (can approve)
--- approve_meeting(2, 3, '2021-10-14', 10, 11, 93)
--- approve_meeting(1, 1, '2021-10-21', 14, 17, 91)
-
 -- eid is manager, room belongs to different department as manager (cannot approve)
--- approve_meeting(2, 5, '2021-10-14', 22, 23, 86)
--- approve_meeting(1, 4, '2021-10-21', 14, 16, 86)
-
 -- eid is not a manager (cannot approve)
--- approve_meeting(2, 5, '2021-10-14', 22, 23, 1)
--- approve_meeting(1, 4, '2021-10-21', 14, 16, 2)
 CREATE OR REPLACE FUNCTION approve_meeting
     (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT, IN query_eid INT)
 RETURNS VOID AS $$
 DECLARE
+    temp_query_start_hour INT := query_start_hour;
     time_diff INT := -1;
     manager_eid INT := -1;
     manager_did INT := -1;
     room_did INT := -1;
 BEGIN
-    time_diff := query_end_hour - query_start_hour;
+    IF query_eid NOT IN (SELECT eid FROM Managers WHERE eid = query_eid)
+        THEN RAISE EXCEPTION USING errcode='NOMAN';
+    END IF;
+
+    time_diff := query_end_hour - temp_query_start_hour;
+    WHILE time_diff >= 1 LOOP
+        IF (query_floor_num, query_room_num, query_date, temp_query_start_hour)
+            NOT IN (SELECT floor_num, room_num, date, time
+                    FROM Sessions
+                    WHERE query_floor_num = floor_num
+                    AND query_room_num = room_num
+                    AND query_date = date
+                    AND temp_query_start_hour = time)
+            THEN RAISE EXCEPTION USING errcode='NOEXT';
+        END IF;
+        temp_query_start_hour := temp_query_start_hour + 1;
+        time_diff := query_end_hour - temp_query_start_hour;
+    END LOOP;
+
+    temp_query_start_hour := query_start_hour;
+    time_diff := query_end_hour - temp_query_start_hour;
+
     WHILE time_diff >= 1 LOOP
         SELECT eid INTO manager_eid
         FROM Managers
@@ -341,11 +400,17 @@ BEGIN
                 WHERE floor_num = query_floor_num
                 AND room_num = query_room_num
                 AND date = query_date
-                AND time = query_start_hour;
+                AND time = temp_query_start_hour;
+            ELSE RAISE EXCEPTION USING errcode='NODID';
             END IF;
         END IF;
-        query_start_hour := query_start_hour + 1;
-        time_diff := query_end_hour - query_start_hour;
+        temp_query_start_hour := temp_query_start_hour + 1;
+        time_diff := query_end_hour - temp_query_start_hour;
     END LOOP;
+
+EXCEPTION
+    WHEN sqlstate 'NOMAN' THEN RAISE EXCEPTION 'This ID is not a Manager, cannot approve any meetings!';
+    WHEN sqlstate 'NOEXT' THEN RAISE EXCEPTION 'There is no booked session for the entire period of time, cannot approve!';
+    WHEN sqlstate 'NODID' THEN RAISE EXCEPTION 'This Manager does not belong to the same department as the meeting room, cannot approve!';
 END;
 $$ LANGUAGE plpgsql;
