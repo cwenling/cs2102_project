@@ -1,3 +1,8 @@
+CREATE TRIGGER contact_trace
+AFTER INSERT ON HealthDeclarations
+FOR EACH ROW WHEN (temperature > 37.5)
+EXECUTE FUNCTION contact_tracing();
+
 --declare_health
 CREATE OR REPLACE FUNCTION declare_health (IN id INT, IN date DATE, IN temperature NUMERIC) RETURNS VOID AS 
 $$
@@ -8,7 +13,6 @@ $$
 	LANGUAGE plpgsql;
 
 --contact_tracing
-----KIV: This employee cannot book a room until they are no longer having fever.
 CREATE OR REPLACE FUNCTION contact_tracing (IN id INT) RETURNS TABLE(eid INT) AS 
 $$
 DECLARE
@@ -21,7 +25,7 @@ BEGIN
         DELETE FROM Joins WHERE date >= declared_date AND eid = id;
         DELETE FROM Sessions WHERE date >= declared_date AND booker_id = id;
 
-        CREATE VIEW close_contacts AS
+        CREATE VIEW close_contacts ON COMMIT DROP AS
             SELECT j2.eid
             FROM Joins j1, Joins j2, Sessions s
             WHERE j1.eid = id
