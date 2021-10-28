@@ -1,3 +1,5 @@
+-- BASIC FUNCTIONS
+
 --add_department
 CREATE OR REPLACE FUNCTION add_department (IN id INT, IN name TEXT) RETURNS VOID AS 
 $$
@@ -16,13 +18,13 @@ $$
 CREATE OR REPLACE FUNCTION warn_department_removal() RETURNS TRIGGER AS
 $$
 BEGIN 
-	RAISE NOTICE 'Department removed!';
+	RAISE NOTICE 'Department now removed. This cannot be undone!';
 	RETURN NEW;
 END;
 $$ 
 	LANGUAGE plpgsql;
 
-CREATE TRIGGER warn_e_removal
+CREATE TRIGGER warn_dept_removal
 BEFORE UPDATE ON Departments
 FOR EACH STATEMENT EXECUTE FUNCTION warn_department_removal();
 
@@ -140,13 +142,13 @@ $$
 CREATE OR REPLACE FUNCTION warn_employee_removal() RETURNS TRIGGER AS
 $$
 BEGIN 
-	RAISE NOTICE 'Employee removed!';
+	RAISE NOTICE 'Employee now removed. This cannot be undone!';
 	RETURN NEW;
 END;
 $$ 
 	LANGUAGE plpgsql;
 
-CREATE TRIGGER warn_e_removal
+CREATE TRIGGER warn_emp_removal
 BEFORE UPDATE ON Employees
 FOR EACH STATEMENT EXECUTE FUNCTION warn_employee_removal();
 
