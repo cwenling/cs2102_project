@@ -44,7 +44,7 @@ CREATE TABLE MeetingRooms (
     rname        TEXT,
     did          INTEGER,
     PRIMARY KEY (floor_num, room_num),
-    FOREIGN KEY (did) REFERENCES Departments (did) ON DELETE SET NULL
+    FOREIGN KEY (did) REFERENCES Departments (did) ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 -- eid refers to the manager’s eid
