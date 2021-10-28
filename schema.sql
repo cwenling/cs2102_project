@@ -42,9 +42,9 @@ CREATE TABLE MeetingRooms (
     floor_num    INTEGER,
     room_num     INTEGER,
     rname        TEXT,
-    did          INTEGER NOT NULL,
+    did          INTEGER,
     PRIMARY KEY (floor_num, room_num),
-    FOREIGN KEY (did) REFERENCES Departments (did)
+    FOREIGN KEY (did) REFERENCES Departments (did) ON DELETE SET NULL
 );
 
 -- eid refers to the manager’s eid
