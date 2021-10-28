@@ -1,3 +1,5 @@
+-- CORE FUNCTIONS
+
 CREATE OR REPLACE FUNCTION search_room
     (IN query_cap INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT)
 RETURNS TABLE(floor_num INT, room_num INT, did INT, cap INT) AS $$

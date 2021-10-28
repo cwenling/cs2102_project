@@ -1,3 +1,5 @@
+-- ADMIN FUNCTIONS
+
 /* Employees checked from start_date to 
 end_date/res_date, whichever is earlier. */
 CREATE OR REPLACE FUNCTION non_compliance
@@ -21,6 +23,7 @@ BEGIN
     ORDER BY missedDays DESC;
 END;
 $$ LANGUAGE plpgsql;
+
 
 CREATE OR REPLACE FUNCTION view_booking_report
     (IN _start_date DATE, IN _eid INT)
