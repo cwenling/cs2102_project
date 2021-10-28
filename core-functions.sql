@@ -295,6 +295,7 @@ DECLARE
     time_diff INT := -1;
     is_in_meeting INT := -1;
     approval_eid INT := -1;
+    is_booker INT := -1;
 BEGIN
     time_diff := query_end_hour - temp_query_start_hour;
     WHILE time_diff >= 1 LOOP
@@ -323,6 +324,14 @@ BEGIN
         AND date = query_date
         AND time = temp_query_start_hour;
 
+        SELECT COUNT(*) INTO is_booker
+        FROM Sessions
+        WHERE floor_num = query_floor_num
+        AND room_num = query_room_num
+        AND date = query_date
+        AND time = temp_query_start_hour
+        AND booker_id = query_eid;
+
         IF is_in_meeting > 0 THEN
             SELECT approval_id INTO approval_eid
             FROM Sessions
@@ -332,12 +341,20 @@ BEGIN
             AND time = temp_query_start_hour;
 
             IF approval_eid IS NULL THEN
-                DELETE FROM Joins
-                WHERE eid = query_eid
-                AND floor_num = query_floor_num
-                AND room_num = query_room_num
-                AND date = query_date
-                AND time = temp_query_start_hour;
+                IF is_booker == 1 THEN -- the booker is leaving the meeting, so need to remove the Sessions, which will then remove employees from Joins
+                    DELETE FROM Sessions
+                    WHERE floor_num = query_floor_num
+                    AND room_num = query_room_num
+                    AND date = query_date
+                    AND time = temp_query_start_hour;
+                ELSE
+                    DELETE FROM Joins
+                    WHERE eid = query_eid
+                    AND floor_num = query_floor_num
+                    AND room_num = query_room_num
+                    AND date = query_date
+                    AND time = temp_query_start_hour;
+                END IF;
             ELSE RAISE EXCEPTION USING errcode='APPRV';
             END IF;
         ELSE RAISE EXCEPTION USING errcode='NOMTG';
