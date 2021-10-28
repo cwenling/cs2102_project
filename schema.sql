@@ -15,7 +15,7 @@ CREATE TABLE Employees (
     res_date      DATE,
     did           INTEGER,
     end_date      DATE,
-    FOREIGN KEY (did) REFERENCES Departments (did) ON DELETE SET NULL
+    FOREIGN KEY (did) REFERENCES Departments (did) ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 CREATE TABLE Juniors (
