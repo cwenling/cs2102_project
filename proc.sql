@@ -1,3 +1,176 @@
+-- BASIC FUNCTIONS
+
+--add_department
+CREATE OR REPLACE FUNCTION add_department (IN id INT, IN name TEXT) RETURNS VOID AS 
+$$
+BEGIN
+	INSERT INTO Departments (did, dname) VALUES (id, name);
+
+EXCEPTION 
+	WHEN unique_violation THEN RAISE EXCEPTION 'This ID already exists!';
+
+END
+$$ 
+	LANGUAGE plpgsql;
+
+
+--remove_department
+CREATE OR REPLACE FUNCTION warn_department_removal() RETURNS TRIGGER AS
+$$
+BEGIN 
+	RAISE NOTICE 'Department now removed. This cannot be undone!';
+	RETURN NEW;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER warn_dept_removal
+BEFORE UPDATE ON Departments
+FOR EACH STATEMENT EXECUTE FUNCTION warn_department_removal();
+
+CREATE OR REPLACE FUNCTION remove_department (IN id INT) RETURNS VOID AS 
+$$
+BEGIN
+	IF id IN (SELECT did FROM Departments) 
+		THEN DELETE FROM Departments WHERE did = id;
+	ELSE RAISE EXCEPTION USING
+		errcode='NODID';
+	END IF;
+
+EXCEPTION 
+	WHEN sqlstate 'NODID' THEN RAISE EXCEPTION 'This ID does not exist!';
+	
+END
+$$ 
+	LANGUAGE plpgsql;
+
+
+--add_room
+-- assumes e_id can legally create the room (no impasta)
+CREATE OR REPLACE FUNCTION add_room 
+	(IN floornum INT, IN roomnum INT, IN room_name TEXT, IN room_cap INT, IN e_id INT, IN today_date DATE) RETURNS VOID AS 
+$$
+DECLARE 
+	d_id INT;
+BEGIN
+	SELECT did INTO d_id FROM Employees WHERE eid = e_id;
+	INSERT INTO MeetingRooms (floor_num, room_num, rname, did) VALUES (floornum, roomnum, room_name, d_id);
+	INSERT INTO Updates (date, new_cap, floor_num, room_num, eid) VALUES (today_date, room_cap, floornum, roomnum, e_id);
+
+EXCEPTION 
+	WHEN unique_violation THEN RAISE EXCEPTION 'This meeting room already exists!';
+
+END
+$$ 
+	LANGUAGE plpgsql;
+
+
+--change_capacity
+-- when adding a new cap, if the new cap, room num, floor num and date alr exists (aka only eid changed),
+-- nothing will be updated ie old data entry holds
+CREATE OR REPLACE FUNCTION change_capacity 
+	(IN floornum INT, IN roomnum INT, IN room_cap INT, IN today_date DATE, IN e_id INT) RETURNS VOID AS 
+$$
+DECLARE 
+	d_id INT;
+	room_did INT;
+	is_manager BOOLEAN := false;
+BEGIN
+	SELECT did INTO d_id FROM Employees WHERE eid = e_id;
+	SELECT did INTO room_did FROM MeetingRooms WHERE floor_num = floornum AND room_num = roomnum;
+	IF e_id IN (SELECT eid FROM Managers) THEN is_manager = true;
+	ELSE RAISE EXCEPTION USING 
+		errcode='NOTMA';
+	END IF;
+	IF d_id = room_did THEN 
+		IF (today_date, floornum, roomnum) IN (SELECT date, floor_num, room_num FROM Updates) 
+			THEN UPDATE Updates
+				 SET new_cap = room_cap, eid = e_id
+				 WHERE date = today_date AND floor_num = floornum AND room_num = roomnum; 
+		ELSE INSERT INTO Updates (date, new_cap, floor_num, room_num, eid) VALUES (today_date, room_cap, floornum, roomnum, e_id);
+		END IF;
+	ELSE RAISE EXCEPTION USING
+		errcode='NOTID';
+	END IF;
+	
+EXCEPTION 
+	WHEN sqlstate 'NOTMA' THEN RAISE EXCEPTION 'Only managers can change the room capacity.';
+	WHEN sqlstate 'NOTID' THEN RAISE EXCEPTION 'Manager must be from the same department as the room to change its capacity';
+
+	
+END
+$$ 
+	LANGUAGE plpgsql;
+
+
+--add_employee 
+CREATE OR REPLACE FUNCTION add_employee 
+	(IN name TEXT, IN home_con INT, IN mobile_con INT, IN office_con INT, IN type TEXT, IN d_id INT) RETURNS VOID AS 
+$$
+DECLARE 
+	e_id INT;
+	e_id_str TEXT;
+	g_email TEXT;
+BEGIN
+	SELECT COUNT(*) INTO e_id FROM Employees;	
+	e_id = e_id + 1;
+	SELECT CAST(e_id AS TEXT) INTO e_id_str;
+	SELECT CONCAT(e_id_str, '_', name, '@company.com') INTO g_email;
+	
+	INSERT INTO Employees VALUES (e_id, name, home_con, mobile_con, office_con, g_email, null, d_id);
+	
+	IF type = 'junior' THEN 
+		INSERT INTO Juniors VALUES (e_id);
+	ELSIF type = 'senior' THEN 
+		INSERT INTO Bookers VALUES (e_id);
+		INSERT INTO Seniors VALUES (e_id);
+	ELSIF type = 'manager' THEN 
+		INSERT INTO Bookers VALUES (e_id);
+		INSERT INTO Managers VALUES (e_id);
+	ELSE RAISE EXCEPTION USING
+		errcode='INVAL';
+	END IF;
+	
+EXCEPTION 
+	WHEN sqlstate 'INVAL' THEN RAISE EXCEPTION 'This employee type does not exist!';
+	
+END
+$$ 
+	LANGUAGE plpgsql;
+
+--remove_employee
+CREATE OR REPLACE FUNCTION warn_employee_removal() RETURNS TRIGGER AS
+$$
+BEGIN 
+	RAISE NOTICE 'Employee now removed. This cannot be undone!';
+	RETURN NEW;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER warn_emp_removal
+BEFORE UPDATE ON Employees
+FOR EACH STATEMENT EXECUTE FUNCTION warn_employee_removal();
+
+CREATE OR REPLACE FUNCTION remove_employee 
+	(IN e_id INT, IN date DATE) RETURNS VOID AS 
+$$
+BEGIN
+	IF e_id IN (SELECT eid FROM Employees) THEN
+		UPDATE Employees SET res_date = date WHERE eid = e_id;
+	ELSE RAISE EXCEPTION USING
+		errcode = 'NOEID';
+	END IF;
+
+EXCEPTION 
+	WHEN sqlstate 'NOEID' THEN RAISE EXCEPTION 'This Employee ID does not exist!';
+	
+END
+$$ 
+	LANGUAGE plpgsql;
+
+
+
 -- CORE FUNCTIONS
 
 CREATE OR REPLACE FUNCTION search_room
@@ -458,5 +631,156 @@ BEGIN
     AND room_num = query_room_num
     AND date = query_date
     AND time = query_start_hour;
+END;
+$$ LANGUAGE plpgsql;
+
+
+
+-- HEALTH FUNCTIONS
+--declare_health
+CREATE OR REPLACE FUNCTION declare_health (IN input_id INT, IN input_date DATE, IN input_temp NUMERIC) RETURNS VOID AS 
+$$
+BEGIN
+	INSERT INTO HealthDeclarations (date, temp, eid) VALUES (date, temperature, id);
+    RETURN VOID;
+END
+$$ 
+	LANGUAGE plpgsql;
+
+--contact_tracing, returns table of close contacts to employee id.
+CREATE OR REPLACE FUNCTION contact_tracing (IN traced_id INT) RETURNS TABLE(eid INT) AS 
+$$
+DECLARE
+    declared_date DATE;
+    declared_temp NUMERIC;
+    declared_time INTEGER;
+BEGIN
+    SELECT max(date) INTO declared_date FROM HealthDeclarations WHERE eid = traced_id;
+    SELECT temp INTO declared_temp FROM HealthDeclarations WHERE eid = traced_id AND date = declared_date;
+    SELECT EXTRACT(HOUR FROM localtime) INTO declared_time FROM NOW();
+    IF declared_temp > 37.5 THEN
+        CREATE VIEW close_contacts ON COMMIT DROP AS
+            (SELECT j2.eid
+            FROM Joins j1, Joins j2, Sessions s
+            WHERE j1.eid = traced_id
+            AND s.approval_id IS NOT NULL
+            AND s.date >= declared_date - 3
+            AND s.date < declared_date
+            AND j1.time = s.time
+            AND j1.date = s.date
+            AND j1.floor_num = s.floor_num
+            AND j1.room_num = s.room_num
+            AND j2.time = s.time
+            AND j2.date = s.date
+            AND j2.floor_num = s.floor_num
+            AND j2.room_num = s.room_num)
+            UNION
+            (SELECT j2.eid
+            FROM Joins j1, Joins j2, Sessions s
+            WHERE j1.eid = id
+            AND s.approval_id IS NOT NULL
+            AND s.date = declared_date
+            AND j2.time <= declared_time
+            AND j1.time = s.time
+            AND j1.date = s.date
+            AND j1.floor_num = s.floor_num
+            AND j1.room_num = s.room_num
+            AND j2.time = s.time
+            AND j2.date = s.date
+            AND j2.floor_num = s.floor_num
+            AND j2.room_num = s.room_num);
+
+        DELETE FROM Joins WHERE ((date > declared_date) OR (date = declared_date AND time > declared_time))  AND eid = id;
+        DELETE FROM Sessions WHERE ((date > declared_date) OR (date = declared_date AND time > declared_time)) AND booker_id = id;
+
+        DELETE FROM Joins WHERE eid IN (close_contacts) AND ((date > declared_date) OR (date = declared_date AND time > declared_time)) AND date <= declared_date + 7;
+        UPDATE Employees SET end_date = declared_date + 7;
+        RETURN QUERY SELECT * FROM close_contacts;
+    END IF;
+END
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER contact_trace_if_fever
+AFTER INSERT ON HealthDeclarations
+FOR EACH ROW WHEN (temperature > 37.5)
+EXECUTE FUNCTION contact_trace();
+
+CREATE OR REPLACE FUNCTION contact_trace (IN id INT) RETURNS TRIGGER AS 
+$$
+BEGIN
+    SELECT * FROM contact_tracing(NEW.eid);
+    RETURN NULL;
+END
+$$ 
+	LANGUAGE plpgsql;
+
+
+
+-- ADMIN FUNCTIONS
+
+/* Employees checked from start_date to 
+end_date/res_date, whichever is earlier. */
+CREATE OR REPLACE FUNCTION non_compliance
+    (IN _start_date DATE, IN _end_date DATE)
+RETURNS TABLE(eid INT, days_recorded BIGINT) AS $$
+BEGIN
+    CREATE TEMP TABLE validDurations ON COMMIT DROP AS
+    SELECT e.eid, (CASE 
+        WHEN e.res_date IS NOT NULL AND e.res_date < _end_date THEN e.res_date
+        ELSE _end_date
+    END) - _start_date AS duration
+    FROM Employees e;
+
+    RETURN QUERY
+    SELECT hd.eid, hd.duration - COUNT(DISTINCT hd.date) AS missedDays  
+    FROM (HealthDeclarations NATURAL JOIN Employees NATURAL JOIN validDurations) AS hd
+    WHERE date BETWEEN _start_date 
+    AND _start_date + hd.duration
+    GROUP BY hd.eid, hd.duration
+    HAVING COUNT(DISTINCT hd.date) < hd.duration
+    ORDER BY missedDays DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION view_booking_report
+    (IN _start_date DATE, IN _eid INT)
+RETURNS TABLE(floor_num INT, room_num INT, date DATE, start_hour INT, is_approved BOOLEAN) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT DISTINCT s.floor_num, s.room_num, s.date, s.time, s.approval_id IS NOT NULL AS is_approved
+    FROM Sessions s
+    WHERE s.booker_id = _eid AND s.date >= _start_date
+    GROUP BY s.floor_num, s.room_num, s.date, s.time
+    ORDER BY s.date, s.time ASC;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION view_future_meeting
+    (IN _start_date DATE, IN _eid INT)
+RETURNS TABLE(floor_num INT, room_num INT, date DATE, start_hour INT) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT DISTINCT sj.floor_num, sj.room_num, sj.date, sj.time
+    FROM (Sessions NATURAL JOIN Joins) AS sj
+    WHERE sj.eid = _eid AND sj.date >= _start_date AND sj.approval_id IS NOT NULL
+    GROUP BY sj.floor_num, sj.room_num, sj.date, sj.time
+    ORDER BY sj.date, sj.time ASC;
+END;
+$$ LANGUAGE plpgsql;
+
+-- eid refers to manager id
+CREATE OR REPLACE FUNCTION view_manager_report
+    (IN _start_date DATE, IN _eid INT)
+RETURNS TABLE(floor_num INT, room_num INT, date DATE, start_hour INT, eid INT) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT DISTINCT m.floor_num, m.room_num, m.date, m.time, m.eid
+    FROM (Departments NATURAL JOIN Employees NATURAL JOIN Managers NATURAL JOIN MeetingRooms NATURAL JOIN Sessions) as m 
+    WHERE m.eid =  _eid AND m.approval_id IS NULL AND m.date >= _start_date
+    GROUP BY m.floor_num, m.room_num, m.date, m.time, m.eid
+    ORDER BY m.date, m.time ASC;
 END;
 $$ LANGUAGE plpgsql;
