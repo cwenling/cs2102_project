@@ -13,8 +13,8 @@ CREATE TABLE Employees (
     office_num    INTEGER,
     email         TEXT UNIQUE NOT NULL,
     res_date      DATE,
-    did           INTEGER NOT NULL,
-    FOREIGN KEY (did) REFERENCES Departments (did)
+    did           INTEGER,
+    FOREIGN KEY (did) REFERENCES Departments (did) ON DELETE SET NULL
 );
 
 CREATE TABLE Juniors (
