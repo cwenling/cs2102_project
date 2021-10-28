@@ -1,23 +1,24 @@
-/* Employees resigned between start_date and end_date will
-be checked from start_date to end_date currently. Should we stop at their resignation date? */
+/* Employees checked from start_date to 
+end_date/res_date, whichever is earlier. */
 CREATE OR REPLACE FUNCTION non_compliance
     (IN _start_date DATE, IN _end_date DATE)
 RETURNS TABLE(eid INT, days_recorded BIGINT) AS $$
 BEGIN
+    CREATE TEMP TABLE validDurations ON COMMIT DROP AS
+    SELECT e.eid, (CASE 
+        WHEN e.res_date IS NOT NULL AND e.res_date < _end_date THEN e.res_date
+        ELSE _end_date
+    END) - _start_date AS duration
+    FROM Employees e;
+
     RETURN QUERY
-    SELECT hd.eid, COUNT(DISTINCT hd.date)
-    FROM (HealthDeclarations NATURAL JOIN Employees) AS hd
+    SELECT hd.eid, hd.duration - COUNT(DISTINCT hd.date) AS missedDays  
+    FROM (HealthDeclarations NATURAL JOIN Employees NATURAL JOIN validDurations) AS hd
     WHERE date BETWEEN _start_date 
-    AND 
-    (CASE 
-        WHEN hd.res_date IS NOT NULL AND hd.res_date < _end_date THEN hd.res_date
-        ELSE _end_date
-    END)
-    GROUP BY hd.eid, hd.res_date
-    HAVING COUNT(DISTINCT hd.date) < (CASE 
-        WHEN hd.res_date IS NOT NULL AND hd.res_date < _end_date THEN hd.res_date
-        ELSE _end_date
-    END) - _start_date;
+    AND _start_date + hd.duration
+    GROUP BY hd.eid, hd.duration
+    HAVING COUNT(DISTINCT hd.date) < hd.duration
+    ORDER BY missedDays DESC;
 END;
 $$ LANGUAGE plpgsql;
 

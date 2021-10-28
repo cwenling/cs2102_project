@@ -13,6 +13,19 @@ $$
 
 
 --remove_department
+CREATE OR REPLACE FUNCTION warn_department_removal() RETURNS TRIGGER AS
+$$
+BEGIN 
+	RAISE NOTICE 'Department removed!';
+	RETURN NEW;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER warn_e_removal
+BEFORE UPDATE ON Departments
+FOR EACH STATEMENT EXECUTE FUNCTION warn_department_removal();
+
 CREATE OR REPLACE FUNCTION remove_department (IN id INT) RETURNS VOID AS 
 $$
 BEGIN
@@ -59,9 +72,14 @@ $$
 DECLARE 
 	d_id INT;
 	room_did INT;
+	is_manager BOOLEAN := false;
 BEGIN
 	SELECT did INTO d_id FROM Employees WHERE eid = e_id;
 	SELECT did INTO room_did FROM MeetingRooms WHERE floor_num = floornum AND room_num = roomnum;
+	IF e_id IN (SELECT eid FROM Managers) THEN is_manager = true;
+	ELSE RAISE EXCEPTION USING 
+		errcode='NOTMA';
+	END IF;
 	IF d_id = room_did THEN 
 		IF (today_date, floornum, roomnum) IN (SELECT date, floor_num, room_num FROM Updates) 
 			THEN UPDATE Updates
@@ -70,11 +88,13 @@ BEGIN
 		ELSE INSERT INTO Updates (date, new_cap, floor_num, room_num, eid) VALUES (today_date, room_cap, floornum, roomnum, e_id);
 		END IF;
 	ELSE RAISE EXCEPTION USING
-		errcode='NODID';
+		errcode='NOTID';
 	END IF;
 	
 EXCEPTION 
-	WHEN sqlstate 'NODID' THEN RAISE EXCEPTION 'Only employees from the same department as the room can change the capacity!';
+	WHEN sqlstate 'NOTMA' THEN RAISE EXCEPTION 'Only managers can change the room capacity.';
+	WHEN sqlstate 'NOTID' THEN RAISE EXCEPTION 'Manager must be from the same department as the room to change its capacity';
+
 	
 END
 $$ 
@@ -117,6 +137,19 @@ $$
 	LANGUAGE plpgsql;
 
 --remove_employee
+CREATE OR REPLACE FUNCTION warn_employee_removal() RETURNS TRIGGER AS
+$$
+BEGIN 
+	RAISE NOTICE 'Employee removed!';
+	RETURN NEW;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER warn_e_removal
+BEFORE UPDATE ON Employees
+FOR EACH STATEMENT EXECUTE FUNCTION warn_employee_removal();
+
 CREATE OR REPLACE FUNCTION remove_employee 
 	(IN e_id INT, IN date DATE) RETURNS VOID AS 
 $$
