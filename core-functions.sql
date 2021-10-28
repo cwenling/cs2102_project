@@ -186,6 +186,13 @@ DECLARE
     room_cap INT := -1;
     curr_participants INT := -1;
 BEGIN
+    -- query_eid is still unable to join any meetings as he/she is a close contact
+    IF query_date < (SELECT end_date
+                    FROM Employees
+                    WHERE query_eid = eid)
+        THEN RAISE EXCEPTION USING errcode='NJOIN';
+    END IF;
+
     time_diff := query_end_hour - temp_query_start_hour;
     WHILE time_diff >= 1 LOOP
         IF query_eid IN (SELECT eid 
@@ -264,6 +271,7 @@ BEGIN
     END IF;
 
 EXCEPTION
+    WHEN sqlstate 'NJOIN' THEN RAISE EXCEPTION 'This ID is still being contact traced, cannot join any rooms!';
     WHEN sqlstate 'BOOKR' THEN RAISE EXCEPTION 'This ID is the Booker for the meeting, already joined!';
     WHEN sqlstate 'NOEXT' THEN RAISE EXCEPTION 'There is no booked session for the entire period of time, cannot join!';
     WHEN sqlstate 'NOCAP' THEN RAISE EXCEPTION 'There is not enough capacity, cannot join!';
@@ -347,8 +355,10 @@ $$ LANGUAGE plpgsql;
 -- eid is manager, room belongs to same department as manager (can approve)
 -- eid is manager, room belongs to different department as manager (cannot approve)
 -- eid is not a manager (cannot approve)
+
+-- is_approved flag to tell if manager approves or not - if not approved, the booking will be removed from Sessions
 CREATE OR REPLACE FUNCTION approve_meeting
-    (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT, IN query_eid INT)
+    (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour INT, IN query_end_hour INT, IN query_eid INT, IN is_approve BOOLEAN)
 RETURNS VOID AS $$
 DECLARE
     temp_query_start_hour INT := query_start_hour;
@@ -395,12 +405,16 @@ BEGIN
             AND room_num = query_room_num;
 
             IF manager_did = room_did THEN -- room same department as manager
-                UPDATE Sessions
-                SET approval_id = manager_eid
-                WHERE floor_num = query_floor_num
-                AND room_num = query_room_num
-                AND date = query_date
-                AND time = temp_query_start_hour;
+                IF is_approve == 'f' THEN -- manager does not want to approve meeting
+                    SELECT * FROM remove_meeting(query_floor_num, query_room_num, query_date, query_start_hour);
+                ELSE
+                    UPDATE Sessions
+                    SET approval_id = manager_eid
+                    WHERE floor_num = query_floor_num
+                    AND room_num = query_room_num
+                    AND date = query_date
+                    AND time = temp_query_start_hour;
+                END IF;
             ELSE RAISE EXCEPTION USING errcode='NODID';
             END IF;
         END IF;
@@ -412,5 +426,18 @@ EXCEPTION
     WHEN sqlstate 'NOMAN' THEN RAISE EXCEPTION 'This ID is not a Manager, cannot approve any meetings!';
     WHEN sqlstate 'NOEXT' THEN RAISE EXCEPTION 'There is no booked session for the entire period of time, cannot approve!';
     WHEN sqlstate 'NODID' THEN RAISE EXCEPTION 'This Manager does not belong to the same department as the meeting room, cannot approve!';
+END;
+$$ LANGUAGE plpgsql;
+
+-- this function helps to remove any booking which is not approved by any managers so other people can book the meeting room
+CREATE OR REPLACE FUNCTION remove_meeting
+    (IN query_floor_num INT, IN query_room_num INT, IN query_date DATE, IN query_start_hour INT)
+RETURNS VOID AS $$
+BEGIN
+    DELETE FROM Sessions
+    WHERE floor_num = query_floor_num
+    AND room_num = query_room_num
+    AND date = query_date
+    AND time = query_start_hour;
 END;
 $$ LANGUAGE plpgsql;
