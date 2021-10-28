@@ -14,6 +14,7 @@ CREATE TABLE Employees (
     email         TEXT UNIQUE NOT NULL,
     res_date      DATE,
     did           INTEGER,
+    end_date      DATE,
     FOREIGN KEY (did) REFERENCES Departments (did) ON DELETE SET NULL
 );
 
