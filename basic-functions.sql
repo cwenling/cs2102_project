@@ -13,6 +13,19 @@ $$
 
 
 --remove_department
+CREATE OR REPLACE FUNCTION warn_department_removal() RETURNS TRIGGER AS
+$$
+BEGIN 
+	RAISE NOTICE 'Department removed!';
+	RETURN NEW;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER warn_e_removal
+BEFORE UPDATE ON Departments
+FOR EACH STATEMENT EXECUTE FUNCTION warn_department_removal();
+
 CREATE OR REPLACE FUNCTION remove_department (IN id INT) RETURNS VOID AS 
 $$
 BEGIN
@@ -124,6 +137,19 @@ $$
 	LANGUAGE plpgsql;
 
 --remove_employee
+CREATE OR REPLACE FUNCTION warn_employee_removal() RETURNS TRIGGER AS
+$$
+BEGIN 
+	RAISE NOTICE 'Employee removed!';
+	RETURN NEW;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER warn_e_removal
+BEFORE UPDATE ON Employees
+FOR EACH STATEMENT EXECUTE FUNCTION warn_employee_removal();
+
 CREATE OR REPLACE FUNCTION remove_employee 
 	(IN e_id INT, IN date DATE) RETURNS VOID AS 
 $$
