@@ -642,7 +642,6 @@ CREATE OR REPLACE FUNCTION declare_health (IN input_id INT, IN input_date DATE, 
 $$
 BEGIN
 	INSERT INTO HealthDeclarations (date, temp, eid) VALUES (date, temperature, id);
-    RETURN VOID;
 END
 $$ 
 	LANGUAGE plpgsql;
@@ -659,7 +658,7 @@ BEGIN
     SELECT temp INTO declared_temp FROM HealthDeclarations WHERE eid = traced_id AND date = declared_date;
     SELECT EXTRACT(HOUR FROM localtime) INTO declared_time FROM NOW();
     IF declared_temp > 37.5 THEN
-        CREATE VIEW close_contacts ON COMMIT DROP AS
+        CREATE VIEW close_contacts AS
             (SELECT j2.eid
             FROM Joins j1, Joins j2, Sessions s
             WHERE j1.eid = traced_id
@@ -703,10 +702,10 @@ $$
 
 CREATE TRIGGER contact_trace_if_fever
 AFTER INSERT ON HealthDeclarations
-FOR EACH ROW WHEN (temperature > 37.5)
+FOR EACH ROW WHEN (NEW.temp > 37.5)
 EXECUTE FUNCTION contact_trace();
 
-CREATE OR REPLACE FUNCTION contact_trace (IN id INT) RETURNS TRIGGER AS 
+CREATE OR REPLACE FUNCTION contact_trace () RETURNS TRIGGER AS 
 $$
 BEGIN
     SELECT * FROM contact_tracing(NEW.eid);
@@ -725,13 +724,18 @@ CREATE OR REPLACE FUNCTION non_compliance
     (IN _start_date DATE, IN _end_date DATE)
 RETURNS TABLE(eid INT, days_recorded BIGINT) AS $$
 BEGIN
+    -- Health declarations in the future should not exist
+    IF _start_date > CURRENT_DATE OR _end_date > CURRENT_DATE OR (_start_date > _end_date) 
+        THEN RAISE EXCEPTION USING errcode = 'NODTE';
+    END IF;
+
     CREATE TEMP TABLE validDurations ON COMMIT DROP AS
     SELECT e.eid, (CASE 
         WHEN e.res_date IS NOT NULL AND e.res_date < _end_date THEN e.res_date
         ELSE _end_date
     END) - _start_date AS duration
     FROM Employees e;
-
+    
     RETURN QUERY
     SELECT hd.eid, hd.duration - COUNT(DISTINCT hd.date) AS missedDays  
     FROM (HealthDeclarations NATURAL JOIN Employees NATURAL JOIN validDurations) AS hd
@@ -740,6 +744,9 @@ BEGIN
     GROUP BY hd.eid, hd.duration
     HAVING COUNT(DISTINCT hd.date) < hd.duration
     ORDER BY missedDays DESC;
+
+EXCEPTION
+    WHEN sqlstate 'NODTE' THEN RAISE EXCEPTION 'The specified date range is invalid.';
 END;
 $$ LANGUAGE plpgsql;
 
@@ -748,12 +755,19 @@ CREATE OR REPLACE FUNCTION view_booking_report
     (IN _start_date DATE, IN _eid INT)
 RETURNS TABLE(floor_num INT, room_num INT, date DATE, start_hour INT, is_approved BOOLEAN) AS $$
 BEGIN
+    IF _eid NOT IN (SELECT eid FROM Bookers)  
+    THEN RAISE EXCEPTION USING errcode='NOBKR';
+    END IF;
+
     RETURN QUERY
     SELECT DISTINCT s.floor_num, s.room_num, s.date, s.time, s.approval_id IS NOT NULL AS is_approved
     FROM Sessions s
     WHERE s.booker_id = _eid AND s.date >= _start_date
     GROUP BY s.floor_num, s.room_num, s.date, s.time
     ORDER BY s.date, s.time ASC;
+
+EXCEPTION
+    WHEN sqlstate 'NOBKR' THEN RAISE EXCEPTION 'The specified employee has no booking privileges.';
 END;
 $$ LANGUAGE plpgsql;
 
@@ -762,12 +776,19 @@ CREATE OR REPLACE FUNCTION view_future_meeting
     (IN _start_date DATE, IN _eid INT)
 RETURNS TABLE(floor_num INT, room_num INT, date DATE, start_hour INT) AS $$
 BEGIN
+    IF _start_date < CURRENT_DATE 
+        THEN RAISE EXCEPTION USING errcode='NODTE';
+    END IF;
+
     RETURN QUERY
     SELECT DISTINCT sj.floor_num, sj.room_num, sj.date, sj.time
     FROM (Sessions NATURAL JOIN Joins) AS sj
     WHERE sj.eid = _eid AND sj.date >= _start_date AND sj.approval_id IS NOT NULL
     GROUP BY sj.floor_num, sj.room_num, sj.date, sj.time
     ORDER BY sj.date, sj.time ASC;
+
+EXCEPTION
+    WHEN sqlstate 'NODTE' THEN RAISE EXCEPTION 'The specified start date should be today''s date or later.';
 END;
 $$ LANGUAGE plpgsql;
 
@@ -776,11 +797,19 @@ CREATE OR REPLACE FUNCTION view_manager_report
     (IN _start_date DATE, IN _eid INT)
 RETURNS TABLE(floor_num INT, room_num INT, date DATE, start_hour INT, eid INT) AS $$
 BEGIN
+    -- Shouldn't return meetings that have already passed
+    IF _start_date < CURRENT_DATE 
+        THEN RAISE EXCEPTION USING errcode = 'NODTE';
+    END IF;
+
     RETURN QUERY
     SELECT DISTINCT m.floor_num, m.room_num, m.date, m.time, m.eid
     FROM (Departments NATURAL JOIN Employees NATURAL JOIN Managers NATURAL JOIN MeetingRooms NATURAL JOIN Sessions) as m 
     WHERE m.eid =  _eid AND m.approval_id IS NULL AND m.date >= _start_date
     GROUP BY m.floor_num, m.room_num, m.date, m.time, m.eid
     ORDER BY m.date, m.time ASC;
+
+EXCEPTION
+    WHEN sqlstate 'NODTE' THEN RAISE EXCEPTION 'The specified start date should be today''s date or later.';
 END;
 $$ LANGUAGE plpgsql;
