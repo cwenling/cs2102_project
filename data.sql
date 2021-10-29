@@ -36,7 +36,7 @@ VALUES
   (19,'Alisa Roy','67882977','80233233','86265065','phasellus@velconvallisin.com',null,9,null),
   (20,'Michael Deleon','69376570','84741529','85776458','aliquet.diam@urnaut.net',null,10,null),
 
-  (21,'Leilani Cole','66028488','90775678','87752155','cras.eu@etultricesposuere.org',CURRENT_DATE + 2,1,null),
+  (21,'Leilani Cole','66028488','90775678','87752155','cras.eu@etultricesposuere.org',CURRENT_DATE - 2,1,null),
   (22,'Blake Morris','62872342','97788996','85315385','mi.duis@atlibero.com',null,2,null),
   (23,'Angela Cardenas','65218031','89325858','80859813','aliquet.libero.integer@pharetrautpharetra.net',null,3,CURRENT_DATE),
   (24,'Hilda Howard','65177272','92357658','81743172','dolor.fusce@suscipitest.org',null,4,null),
@@ -47,7 +47,7 @@ VALUES
   (29,'Cody Gaines','63764698','98038526','86130813','urna.nullam.lobortis@ultrices.edu',null,9,null),
   (30,'Vincent Hunt','67220638','96694586','81817477','tempor.arcu.vestibulum@tellusjusto.ca',null,10,null),
 
-  (31,'Sylvia Wilkerson','64644563','92545185','84866296','et.magna@posuereenim.edu',CURRENT_DATE + 2,1,null),
+  (31,'Sylvia Wilkerson','64644563','92545185','84866296','et.magna@posuereenim.edu',CURRENT_DATE - 2,1,null),
   (32,'Melanie Savage','61653864','88113663','88408951','tristique.senectus.et@eleifendnecmalesuada.ca',null,2,null),
   (33,'Rose Byers','62442127','92608390','85222112','massa.lobortis.ultrices@acmattisvelit.co.uk',null,3,null),
   (34,'Quinn Briggs','66678327','83825881','81442052','rutrum@suscipit.com',null,4,null),
@@ -58,7 +58,7 @@ VALUES
   (39,'Chase Knowles','68427367','82371742','86624764','at.velit@necurnasuscipit.edu',null,9,null),
   (40,'Keaton Hooper','63894967','90680837','82766831','nibh.aliquam@atpretiumaliquet.co.uk',null,10,null),
 
-  (41,'Kitra Shelton','62449933','97821965','86555282','phasellus.fermentum.convallis@velest.org',CURRENT_DATE + 4,1,null),
+  (41,'Kitra Shelton','62449933','97821965','86555282','phasellus.fermentum.convallis@velest.org',CURRENT_DATE - 4,1,null),
   (42,'Conan Hancock','62614404','84324872','84778383','consectetuer.adipiscing.elit@in.net',null,2,null),
   (43,'Hammett Hewitt','68886492','87504464','87919925','feugiat@a.edu',null,3,null),
   (44,'Fuller Arnold','66507721','94724028','88123731','dictum.mi.ac@atvelitpellentesque.co.uk',null,4,null),
@@ -69,7 +69,7 @@ VALUES
   (49,'Lionel Kim','65061442','93698486','83591886','nulla.dignissim@massa.co.uk',null,9,null),
   (50,'Yen Wynn','63251815','86165236','87571781','tristique.aliquet@arcu.co.uk',null,10,null),
 
-  (51,'Nerea Reid','61035816','94323881','85747987','ullamcorper.magna@duisa.ca',CURRENT_DATE + 4,1,null),
+  (51,'Nerea Reid','61035816','94323881','85747987','ullamcorper.magna@duisa.ca',CURRENT_DATE - 4,1,null),
   (52,'Aiko Moses','69358685','95418581','83566084','nisi@uttinciduntorci.co.uk',null,2,null),
   (53,'Byron Nguyen','67423105','81629088','81154807','eget.odio@proinvelit.edu',null,3,null),
   (54,'Julian Porter','64264625','97137391','87673466','pharetra.nam@maurismolestie.com',null,4,null),
@@ -80,7 +80,7 @@ VALUES
   (59,'Kyra Carrillo','66875539','87280566','82405978','elit.pede@laciniaatiaculis.co.uk',null,9,null),
   (60,'Eve Decker','69381889','86383114','85816345','mi.pede@egestasadui.com',null,10,null),
 
-  (61,'Harrison Foster','64251768','92711570','85665121','nibh@tinciduntorciquis.com',CURRENT_DATE + 6,1,CURRENT_DATE+3),
+  (61,'Harrison Foster','64251768','92711570','85665121','nibh@tinciduntorciquis.com',CURRENT_DATE - 6,1,CURRENT_DATE+3),
   (62,'Mariko Mack','65374464','82443361','87275612','magnis.dis@necdiamduis.ca',null,2,null),
   (63,'Mara Rhodes','64064648','82136193','87458887','amet.faucibus@venenatislacus.com',null,3,null),
   (64,'Charissa Dotson','61653514','84225674','80811358','et.magnis@posuerecubilia.edu',null,4,null),
@@ -91,7 +91,7 @@ VALUES
   (69,'Ryder Malone','60464116','81500611','85433345','tortor.at.risus@ultrices.com',null,9,null),
   (70,'Heidi Parrish','60150855','96767202','85812338','quis.pede@auctorvelit.ca',null,10,null),
 
-  (71,'Fallon Whitfield','65916620','95831284','88218256','eu.accumsan@risusdonecnibh.co.uk',CURRENT_DATE + 6,1,CURRENT_DATE+1),
+  (71,'Fallon Whitfield','65916620','95831284','88218256','eu.accumsan@risusdonecnibh.co.uk',CURRENT_DATE - 6,1,CURRENT_DATE+1),
   (72,'Xavier Acevedo','67441775','85352875','85811484','amet@ligula.com',null,2,null),
   (73,'Liberty Roman','60042215','92760642','87358481','odio.nam.interdum@dictumsapien.edu',null,3,null),
   (74,'Yardley Rhodes','60001281','82522726','84574202','dolor.elit@luctusaliquet.ca',null,4,null),
@@ -102,7 +102,7 @@ VALUES
   (79,'Drake Tyson','65643150','85526965','87832858','sem.elit@ametconsectetueradipiscing.co.uk',null,9,CURRENT_DATE+4),
   (80,'Kirby Barker','67631635','96528531','89113107','erat.etiam.vestibulum@nisi.org',null,10,null),
 
-  (81,'Lewis Hall','66170755','86691825','87427686','per.inceptos.hymenaeos@eleifendnuncrisus.ca',CURRENT_DATE + 7,1,CURRENT_DATE+5),
+  (81,'Lewis Hall','66170755','86691825','87427686','per.inceptos.hymenaeos@eleifendnuncrisus.ca',CURRENT_DATE - 7,1,CURRENT_DATE+5),
   (82,'Kelsie Simon','63937727','94478710','88839941','ipsum.suspendisse@nisidictumaugue.co.uk',null,2,null),
   (83,'Denise Cervantes','66239825','89349818','85025114','lobortis@ligulaconsectetuer.co.uk',null,3,null),
   (84,'Matthew Houston','61162587','92724335','89332146','sed@erat.org',null,4,null),
@@ -113,7 +113,7 @@ VALUES
   (89,'Curran Harrell','64228485','94843641','87887977','eget@lectusrutrumurna.ca',null,9,null),
   (90,'Stacey Garner','69534134','86283262','86647245','libero.integer@adlitoratorquent.co.uk',null,10,null),
 
-  (91,'Dustin Underwood','60267983','87221547','88493821','interdum.ligula@maurisid.edu',CURRENT_DATE + 7,1,CURRENT_DATE+4),
+  (91,'Dustin Underwood','60267983','87221547','88493821','interdum.ligula@maurisid.edu',CURRENT_DATE - 7,1,CURRENT_DATE+4),
   (92,'Damon Castillo','68341676','93919348','81822674','magna.nam@porttitorvulputate.co.uk',null,2,null),
   (93,'Sage Dennis','67753344','98561537','85248856','quis.accumsan@tortornibh.org',null,3,null),
   (94,'Colt Booker','61373973','80197556','88626955','interdum@aliquet.net',null,4,null),
