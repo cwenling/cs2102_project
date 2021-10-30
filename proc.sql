@@ -1,5 +1,354 @@
 -- BASIC FUNCTIONS
 
+-- Trigger for Departments' UPDATE 
+DROP TRIGGER IF EXISTS block_dept_update_t ON Departments CASCADE;
+
+CREATE OR REPLACE FUNCTION block_dept_update_t_func() RETURNS TRIGGER AS
+$$
+BEGIN 
+	RAISE EXCEPTION 'You are not allowed to directly update department details! Please use the provided functions.';
+	RETURN NULL;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER block_dept_update_t
+BEFORE UPDATE ON Departments
+FOR EACH STATEMENT EXECUTE FUNCTION block_dept_update_t_func();
+
+
+-- Trigger for Departments' DELETE to reflect successful deletion
+DROP TRIGGER IF EXISTS warn_dept_removal_t ON Departments CASCADE;
+
+CREATE OR REPLACE FUNCTION warn_dept_removal_t_func() RETURNS TRIGGER AS
+$$
+BEGIN 
+
+    -- If the department id to be deleted is in Departments, raise a notice
+    IF OLD.did IN (SELECT did FROM Departments) THEN
+        RAISE NOTICE 'Department now removed. This cannot be undone!';
+        RETURN OLD;	 
+
+	ELSE RETURN OLD;
+
+	END IF;
+
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER warn_dept_removal_t
+BEFORE DELETE ON Departments
+FOR EACH ROW EXECUTE FUNCTION warn_dept_removal_t_func();
+
+
+-- Trigger for Employees' INSERT to check direct input data
+DROP TRIGGER IF EXISTS check_emp_insert_t ON Employees CASCADE;
+
+CREATE OR REPLACE FUNCTION check_emp_insert_t_func() RETURNS TRIGGER AS
+$$
+DECLARE 
+	e_id_str TEXT;
+	g_email TEXT;
+
+BEGIN 
+    -- Ensure there is a primary key (eid) and name to generate the email
+    IF NEW.eid IS NOT NULL AND NEW.ename IS NOT NULL THEN 
+        
+        SELECT CAST(NEW.eid AS TEXT) INTO e_id_str;
+        SELECT CONCAT(e_id_str, '_', NEW.ename, '@company.com') INTO g_email;
+
+        -- check if email is valid
+        IF NEW.email = g_email THEN RETURN NEW;
+        ELSE RAISE EXCEPTION 'Email format invalid!';
+        RETURN NULL;
+        END IF;
+    
+    ELSE RAISE EXCEPTION 'Name and eid cannot be NULL! Please provide a valid input.';
+    RETURN NULL;
+    END IF;
+
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER check_emp_insert_t
+BEFORE INSERT ON Employees
+FOR EACH ROW EXECUTE FUNCTION check_emp_insert_t_func();
+
+
+-- Trigger for Employees' UPDATE 
+DROP TRIGGER IF EXISTS block_emp_update_t ON Employees CASCADE;
+
+CREATE OR REPLACE FUNCTION block_emp_update_t_func() RETURNS TRIGGER AS
+$$
+BEGIN 
+    
+    IF (NEW.eid IS NOT NULL AND NEW.eid IN (SELECT eid FROM Employees)) THEN 
+        IF NEW.res_date IS NOT NULL THEN 
+            RETURN NEW;
+        ELSIF NEW.end_date IS NOT NULL THEN
+            RETURN NEW;
+        ELSE RAISE EXCEPTION 'You are not allowed to modify this data!';
+            RETURN NULL;
+        END IF;
+    ELSE RAISE EXCEPTION 'Please provide eid for the update!';
+        RETURN NULL;
+    END IF;
+
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER block_emp_update_t
+BEFORE UPDATE ON Employees
+FOR EACH ROW EXECUTE FUNCTION block_emp_update_t_func();
+
+-- Trigger for Employees' UPDATE to raise notice
+DROP TRIGGER IF EXISTS warn_emp_update_t ON Employees CASCADE;
+
+CREATE OR REPLACE FUNCTION warn_emp_update_t_func() RETURNS TRIGGER AS
+$$
+BEGIN 
+	RAISE NOTICE 'Employee data changed. This cannot be undone!';
+	RETURN NEW;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER warn_emp_update_t
+BEFORE UPDATE ON Employees
+FOR EACH ROW EXECUTE FUNCTION warn_emp_update_t_func();
+
+
+-- Trigger for Employees' DELETE to raise notice
+DROP TRIGGER IF EXISTS block_emp_delete_t ON Employees CASCADE;
+
+CREATE OR REPLACE FUNCTION block_emp_delete_t_func() RETURNS TRIGGER AS
+$$
+BEGIN 
+	RAISE EXCEPTION 'You are not allowed to delete employee data!';
+	RETURN NULL;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER block_emp_delete_t
+BEFORE DELETE ON Employees
+FOR EACH ROW EXECUTE FUNCTION block_emp_delete_t_func();
+
+
+-- Trigger for Junior's INSERT to check data
+DROP TRIGGER IF EXISTS check_junior_insert_t ON Employees CASCADE;
+
+CREATE OR REPLACE FUNCTION check_junior_insert_t_func() RETURNS TRIGGER AS
+$$
+BEGIN 
+	IF NEW.eid IN (SELECT eid FROM Bookers) 
+        OR NEW.eid IN (SELECT eid FROM Seniors)
+        OR NEW.eid IN (SELECT eid FROM Managers) THEN
+            RAISE EXCEPTION 'This eid already exists in another role. Insertion failed.';
+            RETURN NULL;
+    END IF;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER check_junior_insert_t
+BEFORE INSERT ON Juniors
+FOR EACH ROW EXECUTE FUNCTION check_junior_insert_t_func();
+
+-- Trigger for Junior's UPDATE
+DROP TRIGGER IF EXISTS block_junior_update_t ON Employees CASCADE;
+
+CREATE OR REPLACE FUNCTION block_junior_update_t_func() RETURNS TRIGGER AS
+$$
+BEGIN 
+    RAISE EXCEPTION 'Updating of Junior data is not allowed!';
+    RETURN NULL;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER block_junior_update_t
+BEFORE UPDATE ON Juniors
+FOR EACH ROW EXECUTE FUNCTION block_junior_update_t_func();
+
+-- Trigger for Junior's DELETE
+DROP TRIGGER IF EXISTS block_junior_delete_t ON Employees CASCADE;
+
+CREATE OR REPLACE FUNCTION block_junior_delete_t_func() RETURNS TRIGGER AS
+$$
+BEGIN 
+    RAISE EXCEPTION 'Deleting Junior data is not allowed!';
+    RETURN NULL;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER block_junior_delete_t
+BEFORE DELETE ON Juniors
+FOR EACH ROW EXECUTE FUNCTION block_junior_delete_t_func();
+
+
+-- Trigger for Booker's INSERT to check data
+DROP TRIGGER IF EXISTS check_booker_insert_t ON Employees CASCADE;
+
+CREATE OR REPLACE FUNCTION check_booker_insert_t_func() RETURNS TRIGGER AS
+$$
+BEGIN 
+	IF NEW.eid IN (SELECT eid FROM Juniors) THEN
+            RAISE EXCEPTION 'This eid already exists in another role. Insertion failed.';
+            RETURN NULL;
+    END IF;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER check_booker_insert_t
+BEFORE INSERT ON Bookers
+FOR EACH ROW EXECUTE FUNCTION check_booker_insert_t_func();
+
+-- Trigger for Booker's UPDATE
+DROP TRIGGER IF EXISTS block_booker_update_t ON Employees CASCADE;
+
+CREATE OR REPLACE FUNCTION block_booker_update_t_func() RETURNS TRIGGER AS
+$$
+BEGIN 
+    RAISE EXCEPTION 'Updating of Booker data is not allowed!';
+    RETURN NULL;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER block_booker_update_t
+BEFORE UPDATE ON Bookers
+FOR EACH ROW EXECUTE FUNCTION block_booker_update_t_func();
+
+-- Trigger for Booker's DELETE
+DROP TRIGGER IF EXISTS block_booker_delete_t ON Employees CASCADE;
+
+CREATE OR REPLACE FUNCTION block_booker_delete_t_func() RETURNS TRIGGER AS
+$$
+BEGIN 
+    RAISE EXCEPTION 'Deleting Booker data is not allowed!';
+    RETURN NULL;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER block_booker_delete_t
+BEFORE DELETE ON Bookers
+FOR EACH ROW EXECUTE FUNCTION block_booker_delete_t_func();
+
+-- Trigger for Senior's INSERT to check data
+DROP TRIGGER IF EXISTS check_senior_insert_t ON Employees CASCADE;
+
+CREATE OR REPLACE FUNCTION check_senior_insert_t_func() RETURNS TRIGGER AS
+$$
+BEGIN 
+	IF NEW.eid IN (SELECT eid FROM Juniors) 
+        OR NEW.eid IN (SELECT eid FROM Managers) THEN
+            RAISE EXCEPTION 'This eid already exists in another role. Insertion failed.';
+            RETURN NULL;
+    END IF;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER check_senior_insert_t
+BEFORE INSERT ON Seniors
+FOR EACH ROW EXECUTE FUNCTION check_senior_insert_t_func();
+
+-- Trigger for Senior's UPDATE
+DROP TRIGGER IF EXISTS block_senior_update_t ON Employees CASCADE;
+
+CREATE OR REPLACE FUNCTION block_senior_update_t_func() RETURNS TRIGGER AS
+$$
+BEGIN 
+    RAISE EXCEPTION 'Updating of Senior data is not allowed!';
+    RETURN NULL;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER block_senior_update_t
+BEFORE UPDATE ON Seniors
+FOR EACH ROW EXECUTE FUNCTION block_senior_update_t_func();
+
+-- Trigger for Senior's DELETE
+DROP TRIGGER IF EXISTS block_senior_delete_t ON Employees CASCADE;
+
+CREATE OR REPLACE FUNCTION block_senior_delete_t_func() RETURNS TRIGGER AS
+$$
+BEGIN 
+    RAISE EXCEPTION 'Deleting Senior data is not allowed!';
+    RETURN NULL;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER block_senior_delete_t
+BEFORE DELETE ON Seniors
+FOR EACH ROW EXECUTE FUNCTION block_senior_delete_t_func();
+
+
+-- Trigger for Manager's INSERT to check data
+DROP TRIGGER IF EXISTS check_manager_insert_t ON Employees CASCADE;
+
+CREATE OR REPLACE FUNCTION check_manager_insert_t_func() RETURNS TRIGGER AS
+$$
+BEGIN 
+	IF NEW.eid IN (SELECT eid FROM Juniors) 
+        OR NEW.eid IN (SELECT eid FROM Seniors) THEN
+            RAISE EXCEPTION 'This eid already exists in another role. Insertion failed.';
+            RETURN NULL;
+    END IF;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER check_manager_insert_t
+BEFORE INSERT ON Managers
+FOR EACH ROW EXECUTE FUNCTION check_manager_insert_t_func();
+
+-- Trigger for Manager's UPDATE
+DROP TRIGGER IF EXISTS block_manager_update_t ON Employees CASCADE;
+
+CREATE OR REPLACE FUNCTION block_manager_update_t_func() RETURNS TRIGGER AS
+$$
+BEGIN 
+    RAISE EXCEPTION 'Updating of Manager data is not allowed!';
+    RETURN NULL;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER block_manager_update_t
+BEFORE UPDATE ON Managers
+FOR EACH ROW EXECUTE FUNCTION block_manager_update_t_func();
+
+-- Trigger for Manager's DELETE
+DROP TRIGGER IF EXISTS block_manager_delete_t ON Employees CASCADE;
+
+CREATE OR REPLACE FUNCTION block_manager_delete_t_func() RETURNS TRIGGER AS
+$$
+BEGIN 
+    RAISE EXCEPTION 'Deleting Manager data is not allowed!';
+    RETURN NULL;
+END;
+$$ 
+	LANGUAGE plpgsql;
+
+CREATE TRIGGER block_manager_delete_t
+BEFORE DELETE ON Managers
+FOR EACH ROW EXECUTE FUNCTION block_manager_delete_t_func();
+
+
+/* 
+    BASIC FUNCTIONS
+*/
+
 --add_department
 CREATE OR REPLACE FUNCTION add_department (IN id INT, IN name TEXT) RETURNS VOID AS 
 $$
@@ -15,38 +364,30 @@ $$
 
 
 --remove_department
-CREATE OR REPLACE FUNCTION warn_department_removal() RETURNS TRIGGER AS
-$$
-BEGIN 
-	RAISE NOTICE 'Department now removed. This cannot be undone!';
-	RETURN NEW;
-END;
-$$ 
-	LANGUAGE plpgsql;
-
-CREATE TRIGGER warn_dept_removal
-BEFORE UPDATE ON Departments
-FOR EACH STATEMENT EXECUTE FUNCTION warn_department_removal();
-
 CREATE OR REPLACE FUNCTION remove_department (IN id INT) RETURNS VOID AS 
 $$
 BEGIN
-	IF id IN (SELECT did FROM Departments) 
+   IF id IN (SELECT did FROM Departments) 
 		THEN DELETE FROM Departments WHERE did = id;
-	ELSE RAISE EXCEPTION USING
+	
+    -- Exception has to be raised here and not trigger because
+    -- if there is no valid input for deletion, the trigger would not get triggered.
+    ELSE RAISE EXCEPTION USING
 		errcode='NODID';
 	END IF;
 
 EXCEPTION 
 	WHEN sqlstate 'NODID' THEN RAISE EXCEPTION 'This ID does not exist!';
 	
+
 END
 $$ 
 	LANGUAGE plpgsql;
 
+/*add trigger to prevent update and deletion of meeting room just raise exception*/
 
 --add_room
--- assumes e_id can legally create the room (no impasta)
+-- assumes e_id can legally create the room
 CREATE OR REPLACE FUNCTION add_room 
 	(IN floornum INT, IN roomnum INT, IN room_name TEXT, IN room_cap INT, IN e_id INT, IN today_date DATE) RETURNS VOID AS 
 $$
@@ -63,6 +404,7 @@ EXCEPTION
 END
 $$ 
 	LANGUAGE plpgsql;
+
 
 
 --change_capacity
@@ -85,8 +427,8 @@ BEGIN
 	IF d_id = room_did THEN 
 		IF (today_date, floornum, roomnum) IN (SELECT date, floor_num, room_num FROM Updates) 
 			THEN UPDATE Updates
-				 SET new_cap = room_cap, eid = e_id
-				 WHERE date = today_date AND floor_num = floornum AND room_num = roomnum; 
+			    SET new_cap = room_cap, eid = e_id
+				WHERE date = today_date AND floor_num = floornum AND room_num = roomnum; 
 		ELSE INSERT INTO Updates (date, new_cap, floor_num, room_num, eid) VALUES (today_date, room_cap, floornum, roomnum, e_id);
 		END IF;
 	ELSE RAISE EXCEPTION USING
@@ -138,26 +480,24 @@ END
 $$ 
 	LANGUAGE plpgsql;
 
---remove_employee
-CREATE OR REPLACE FUNCTION warn_employee_removal() RETURNS TRIGGER AS
-$$
-BEGIN 
-	RAISE NOTICE 'Employee now removed. This cannot be undone!';
-	RETURN NEW;
-END;
-$$ 
-	LANGUAGE plpgsql;
-
-CREATE TRIGGER warn_emp_removal
-BEFORE UPDATE ON Employees
-FOR EACH STATEMENT EXECUTE FUNCTION warn_employee_removal();
+---remove_employee
 
 CREATE OR REPLACE FUNCTION remove_employee 
-	(IN e_id INT, IN date DATE) RETURNS VOID AS 
+	(IN e_id INT, IN inp_date DATE) RETURNS VOID AS 
 $$
 BEGIN
 	IF e_id IN (SELECT eid FROM Employees) THEN
-		UPDATE Employees SET res_date = date WHERE eid = e_id;
+		UPDATE Employees e SET res_date = inp_date WHERE eid = e_id;
+
+        -- remove all sessions where employee was booker
+		DELETE FROM Sessions WHERE booker_id = e_id AND date >= inp_date;
+
+        -- revert all previously approved statuses 
+        UPDATE Sessions SET approval_id = NULL WHERE approval_id = e_id AND date >= inp_date;
+
+        -- remove all instances of employees in future meetings
+        DELETE FROM Joins WHERE eid = e_id AND date >= inp_date;
+		
 	ELSE RAISE EXCEPTION USING
 		errcode = 'NOEID';
 	END IF;
@@ -168,7 +508,6 @@ EXCEPTION
 END
 $$ 
 	LANGUAGE plpgsql;
-
 
 
 -- CORE FUNCTIONS
@@ -739,6 +1078,10 @@ END
 $$ 
 	LANGUAGE plpgsql;
 
+CREATE TRIGGER contact_trace_if_fever
+AFTER INSERT ON HealthDeclarations
+FOR EACH ROW WHEN (NEW.temp > 37.5)
+EXECUTE FUNCTION contact_trace();
 
 
 -- ADMIN FUNCTIONS
