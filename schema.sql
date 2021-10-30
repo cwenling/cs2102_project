@@ -2,18 +2,18 @@ DROP TABLE IF EXISTS Employees, Juniors, Bookers, Seniors, Managers, Departments
 
 CREATE TABLE Departments (
     did          INTEGER PRIMARY KEY,
-    dname        TEXT
+    dname        TEXT NOT NULL
 );
 
 CREATE TABLE Employees (
     eid           INTEGER PRIMARY KEY,
-    ename         TEXT,
+    ename         TEXT NOT NULL,
     home_num      INTEGER,
     mobile_num	  INTEGER,
     office_num    INTEGER,
     email         TEXT UNIQUE NOT NULL,
     res_date      DATE,
-    did           INTEGER,
+    did           INTEGER DEFAULT NULL,
     end_date      DATE,
     FOREIGN KEY (did) REFERENCES Departments (did) ON DELETE SET NULL ON UPDATE CASCADE
 );
