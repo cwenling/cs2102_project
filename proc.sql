@@ -1151,6 +1151,8 @@ BEGIN
         DELETE FROM Sessions WHERE ((date > declared_date) OR (date = declared_date AND time > declared_time)) AND booker_id = declared_id;
 
         DELETE FROM Joins WHERE eid IN (close_contacts) AND ((date > declared_date) OR (date = declared_date AND time > declared_time)) AND date <= declared_date + 7;
+        DELETE FROM Sessions WHERE booker_id IN (close_contacts) AND ((date > declared_date) OR (date = declared_date AND time > declared_time)) AND date <= declared_date + 7;
+
         UPDATE Employees SET end_date = declared_date + 7;
         RETURN QUERY SELECT * FROM close_contacts;
     END IF;
