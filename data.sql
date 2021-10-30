@@ -1,4 +1,3 @@
-
 INSERT INTO Departments (did,dname)
 VALUES
   (1,'Production'),
@@ -1109,6 +1108,7 @@ VALUES
   (3,CURRENT_DATE + 3,1,2,51,82),
   (4,CURRENT_DATE + 3,1,2,51,82),
   (5,CURRENT_DATE + 3,1,2,51,82),
+  (5,CURRENT_DATE + 6,1,2,51,82),
   (22,CURRENT_DATE + 2,1,4,56,null),
   (23,CURRENT_DATE + 2,1,4,56,null),
   (0,CURRENT_DATE + 3,1,4,56,null),
