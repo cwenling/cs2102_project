@@ -977,30 +977,40 @@ $$ LANGUAGE plpgsql;
 
 -- HEALTH FUNCTIONS
 --declare_health
+DROP FUNCTION declare_health(integer,date,numeric);
 CREATE OR REPLACE FUNCTION declare_health (IN input_id INT, IN input_date DATE, IN input_temp NUMERIC) RETURNS VOID AS 
 $$
 BEGIN
-	INSERT INTO HealthDeclarations (date, temp, eid) VALUES (date, temperature, id);
+    IF input_id IN (SELECT eid FROM Employees)
+        INSERT INTO HealthDeclarations (date, temp, eid) VALUES (input_date, input_temp, input_id);
+    ELSE RAISE EXCEPTION USING
+        errcode='NOEID';
+    END IF;
+
+EXCEPTION
+    WHEN sqlstate 'NOEID' THEN RAISE EXCEPTION 'This ID does not exist!';
 END
 $$ 
 	LANGUAGE plpgsql;
 
 --contact_tracing, returns table of close contacts to employee id.
+DROP FUNCTION contact_tracing(integer);
 CREATE OR REPLACE FUNCTION contact_tracing (IN traced_id INT) RETURNS TABLE(eid INT) AS 
 $$
 DECLARE
     declared_date DATE;
     declared_temp NUMERIC;
     declared_time INTEGER;
+    declared_id INTEGER := traced_id;
 BEGIN
-    SELECT max(date) INTO declared_date FROM HealthDeclarations WHERE eid = traced_id;
-    SELECT temp INTO declared_temp FROM HealthDeclarations WHERE eid = traced_id AND date = declared_date;
+    SELECT max(date) INTO declared_date FROM HealthDeclarations hd WHERE hd.eid = declared_id;
+    SELECT temp INTO declared_temp FROM HealthDeclarations hd WHERE hd.eid = declared_id AND date = declared_date;
     SELECT EXTRACT(HOUR FROM localtime) INTO declared_time FROM NOW();
     IF declared_temp > 37.5 THEN
         CREATE VIEW close_contacts AS
             (SELECT j2.eid
             FROM Joins j1, Joins j2, Sessions s
-            WHERE j1.eid = traced_id
+            WHERE j1.eid = declared_id
             AND s.approval_id IS NOT NULL
             AND s.date >= declared_date - 3
             AND s.date < declared_date
@@ -1015,7 +1025,7 @@ BEGIN
             UNION
             (SELECT j2.eid
             FROM Joins j1, Joins j2, Sessions s
-            WHERE j1.eid = id
+            WHERE j1.eid = declared_id
             AND s.approval_id IS NOT NULL
             AND s.date = declared_date
             AND j2.time <= declared_time
@@ -1028,8 +1038,8 @@ BEGIN
             AND j2.floor_num = s.floor_num
             AND j2.room_num = s.room_num);
 
-        DELETE FROM Joins WHERE ((date > declared_date) OR (date = declared_date AND time > declared_time))  AND eid = id;
-        DELETE FROM Sessions WHERE ((date > declared_date) OR (date = declared_date AND time > declared_time)) AND booker_id = id;
+        DELETE FROM Joins WHERE ((date > declared_date) OR (date = declared_date AND time > declared_time))  AND eid = declared_id;
+        DELETE FROM Sessions WHERE ((date > declared_date) OR (date = declared_date AND time > declared_time)) AND booker_id = declared_id;
 
         DELETE FROM Joins WHERE eid IN (close_contacts) AND ((date > declared_date) OR (date = declared_date AND time > declared_time)) AND date <= declared_date + 7;
         UPDATE Employees SET end_date = declared_date + 7;
@@ -1039,7 +1049,27 @@ END
 $$ 
 	LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION contact_trace() RETURNS TRIGGER AS 
+DROP TRIGGER IF EXISTS cannot_modify_health_declaration on HealthDeclarations;
+CREATE TRIGGER IF EXISTS cannot_modify_health_declaration
+BEFORE UPDATE OR DELETE ON HealthDeclarations
+FOR EACH STATEMENT
+EXECUTE FUNCTION prevent_modification();
+
+CREATE OR REPLACE FUNCTION prevent_modification() RETURNS TRIGGER AS 
+$$
+BEGIN
+    RETURN NULL;
+END
+$$ 
+	LANGUAGE plpgsql;
+
+DROP TRIGGER IF exists contact_trace_if_fever on HealthDeclarations;
+CREATE TRIGGER contact_trace_if_fever
+AFTER INSERT ON HealthDeclarations
+FOR EACH ROW WHEN (NEW.temp > 37.5)
+EXECUTE FUNCTION contact_trace();
+
+CREATE OR REPLACE FUNCTION contact_trace () RETURNS TRIGGER AS 
 $$
 BEGIN
     SELECT * FROM contact_tracing(NEW.eid);
