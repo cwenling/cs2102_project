@@ -61,7 +61,7 @@ BEGIN
         SELECT CONCAT(e_id_str, '@company.com') INTO g_email;
 
         -- check if email is valid
-        IF NEW.email = g_email THEN RETURN NEW;
+        IF NEW.EMAIL IS NOT NULL AND NEW.email = g_email THEN RETURN NEW;
         ELSE RAISE EXCEPTION 'Email format invalid!';
         RETURN NULL;
         END IF;
@@ -151,6 +151,7 @@ BEGIN
         OR NEW.eid IN (SELECT eid FROM Managers) THEN
             RAISE EXCEPTION 'This eid already exists in another role. Insertion failed.';
             RETURN NULL;
+    ELSE RETURN NEW;
     END IF;
     RETURN NEW;
 END;
@@ -203,6 +204,7 @@ BEGIN
 	IF NEW.eid IN (SELECT eid FROM Juniors) THEN
             RAISE EXCEPTION 'This eid already exists in another role. Insertion failed.';
             RETURN NULL;
+    ELSE RETURN NEW;
     END IF;
 END;
 $$ 
@@ -254,6 +256,7 @@ BEGIN
         OR NEW.eid IN (SELECT eid FROM Managers) THEN
             RAISE EXCEPTION 'This eid already exists in another role. Insertion failed.';
             RETURN NULL;
+    ELSE RETURN NEW;
     END IF;
 END;
 $$ 
@@ -306,6 +309,7 @@ BEGIN
         OR NEW.eid IN (SELECT eid FROM Seniors) THEN
             RAISE EXCEPTION 'This eid already exists in another role. Insertion failed.';
             RETURN NULL;
+    ELSE RETURN NEW;
     END IF;
 END;
 $$ 
@@ -524,7 +528,8 @@ DECLARE
 	e_id_str TEXT;
 	g_email TEXT;
 BEGIN
-	SELECT MAX(eid) INTO e_id FROM Employees;	
+
+	eid := SELECT MAX(eid)  FROM Employees;	
 	e_id = e_id + 1;
 	SELECT CAST(e_id AS TEXT) INTO e_id_str;
 	SELECT CONCAT(e_id_str, '@company.com') INTO g_email;
