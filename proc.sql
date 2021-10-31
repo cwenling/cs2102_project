@@ -139,7 +139,7 @@ FOR EACH ROW EXECUTE FUNCTION block_emp_delete_t_func();
 
 
 -- Trigger for Junior's INSERT to check data
-DROP TRIGGER IF EXISTS check_junior_insert_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS check_junior_insert_t ON Juniors CASCADE;
 
 CREATE OR REPLACE FUNCTION check_junior_insert_t_func() RETURNS TRIGGER AS
 $$
@@ -159,7 +159,7 @@ BEFORE INSERT ON Juniors
 FOR EACH ROW EXECUTE FUNCTION check_junior_insert_t_func();
 
 -- Trigger for Junior's UPDATE
-DROP TRIGGER IF EXISTS block_junior_update_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS block_junior_update_t ON Juniors CASCADE;
 
 CREATE OR REPLACE FUNCTION block_junior_update_t_func() RETURNS TRIGGER AS
 $$
@@ -175,7 +175,7 @@ BEFORE UPDATE ON Juniors
 FOR EACH ROW EXECUTE FUNCTION block_junior_update_t_func();
 
 -- Trigger for Junior's DELETE
-DROP TRIGGER IF EXISTS block_junior_delete_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS block_junior_delete_t ON Juniors CASCADE;
 
 CREATE OR REPLACE FUNCTION block_junior_delete_t_func() RETURNS TRIGGER AS
 $$
@@ -192,7 +192,7 @@ FOR EACH ROW EXECUTE FUNCTION block_junior_delete_t_func();
 
 
 -- Trigger for Booker's INSERT to check data
-DROP TRIGGER IF EXISTS check_booker_insert_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS check_booker_insert_t ON Bookers CASCADE;
 
 CREATE OR REPLACE FUNCTION check_booker_insert_t_func() RETURNS TRIGGER AS
 $$
@@ -210,7 +210,7 @@ BEFORE INSERT ON Bookers
 FOR EACH ROW EXECUTE FUNCTION check_booker_insert_t_func();
 
 -- Trigger for Booker's UPDATE
-DROP TRIGGER IF EXISTS block_booker_update_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS block_booker_update_t ON Bookers CASCADE;
 
 CREATE OR REPLACE FUNCTION block_booker_update_t_func() RETURNS TRIGGER AS
 $$
@@ -226,7 +226,7 @@ BEFORE UPDATE ON Bookers
 FOR EACH ROW EXECUTE FUNCTION block_booker_update_t_func();
 
 -- Trigger for Booker's DELETE
-DROP TRIGGER IF EXISTS block_booker_delete_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS block_booker_delete_t ON Bookers CASCADE;
 
 CREATE OR REPLACE FUNCTION block_booker_delete_t_func() RETURNS TRIGGER AS
 $$
@@ -242,7 +242,7 @@ BEFORE DELETE ON Bookers
 FOR EACH ROW EXECUTE FUNCTION block_booker_delete_t_func();
 
 -- Trigger for Senior's INSERT to check data
-DROP TRIGGER IF EXISTS check_senior_insert_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS check_senior_insert_t ON Seniors CASCADE;
 
 CREATE OR REPLACE FUNCTION check_senior_insert_t_func() RETURNS TRIGGER AS
 $$
@@ -261,7 +261,7 @@ BEFORE INSERT ON Seniors
 FOR EACH ROW EXECUTE FUNCTION check_senior_insert_t_func();
 
 -- Trigger for Senior's UPDATE
-DROP TRIGGER IF EXISTS block_senior_update_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS block_senior_update_t ON Seniors CASCADE;
 
 CREATE OR REPLACE FUNCTION block_senior_update_t_func() RETURNS TRIGGER AS
 $$
@@ -277,7 +277,7 @@ BEFORE UPDATE ON Seniors
 FOR EACH ROW EXECUTE FUNCTION block_senior_update_t_func();
 
 -- Trigger for Senior's DELETE
-DROP TRIGGER IF EXISTS block_senior_delete_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS block_senior_delete_t ON Seniors CASCADE;
 
 CREATE OR REPLACE FUNCTION block_senior_delete_t_func() RETURNS TRIGGER AS
 $$
@@ -294,7 +294,7 @@ FOR EACH ROW EXECUTE FUNCTION block_senior_delete_t_func();
 
 
 -- Trigger for Manager's INSERT to check data
-DROP TRIGGER IF EXISTS check_manager_insert_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS check_manager_insert_t ON Managers CASCADE;
 
 CREATE OR REPLACE FUNCTION check_manager_insert_t_func() RETURNS TRIGGER AS
 $$
@@ -313,7 +313,7 @@ BEFORE INSERT ON Managers
 FOR EACH ROW EXECUTE FUNCTION check_manager_insert_t_func();
 
 -- Trigger for Manager's UPDATE
-DROP TRIGGER IF EXISTS block_manager_update_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS block_manager_update_t ON Managers CASCADE;
 
 CREATE OR REPLACE FUNCTION block_manager_update_t_func() RETURNS TRIGGER AS
 $$
@@ -329,7 +329,7 @@ BEFORE UPDATE ON Managers
 FOR EACH ROW EXECUTE FUNCTION block_manager_update_t_func();
 
 -- Trigger for Manager's DELETE
-DROP TRIGGER IF EXISTS block_manager_delete_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS block_manager_delete_t ON Managers CASCADE;
 
 CREATE OR REPLACE FUNCTION block_manager_delete_t_func() RETURNS TRIGGER AS
 $$
