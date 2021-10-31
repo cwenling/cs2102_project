@@ -350,6 +350,83 @@ CREATE TRIGGER block_manager_delete_t
 BEFORE DELETE ON Managers
 FOR EACH ROW EXECUTE FUNCTION block_manager_delete_t_func();
 
+-- Trigger for Meeting Room's UPDATE 
+DROP TRIGGER IF EXISTS block_meeting_rooms_update_t ON MeetingRooms CASCADE;
+
+CREATE OR REPLACE FUNCTION block_meeting_rooms_update_t_func() RETURNS TRIGGER AS
+$$
+BEGIN 
+    RAISE EXCEPTION 'Updating of Meeting Room data is not allowed!';
+    RETURN NULL;
+END;
+$$
+    LANGUAGE plpgsql;
+
+CREATE TRIGGER block_meeting_rooms_update_t
+BEFORE UPDATE ON MeetingRooms
+FOR EACH ROW EXECUTE FUNCTION block_meeting_rooms_update_t_func();
+
+-- Trigger for Meeting Room's DELETE 
+DROP TRIGGER IF EXISTS block_meeting_rooms_delete_t ON MeetingRooms CASCADE;
+
+CREATE OR REPLACE FUNCTION block_meeting_rooms_delete_t_func() RETURNS TRIGGER AS
+$$
+BEGIN 
+    RAISE EXCEPTION 'Deleting of Meeting Room data is not allowed!';
+    RETURN NULL;
+END;
+$$
+    LANGUAGE plpgsql;
+
+CREATE TRIGGER block_meeting_rooms_delete_t
+BEFORE DELETE ON MeetingRooms
+FOR EACH ROW EXECUTE FUNCTION block_meeting_rooms_delete_t_func();
+
+-- Trigger for Updates's INSERT AND UPDATE
+DROP TRIGGER IF EXISTS check_updates_insert_or_update_t ON Updates CASCADE;
+
+CREATE OR REPLACE FUNCTION check_updates_insert_or_update_t_func() RETURNS TRIGGER AS
+$$
+DECLARE
+    m_did INT;
+    room_did INT;
+BEGIN
+    -- This check only fires for manual update statements, not insert.
+    IF NEW.eid NOT IN (SELECT eid FROM Managers)
+    THEN RAISE EXCEPTION 'Only managers can change the room capacity.';
+    END IF;
+
+    SELECT did INTO m_did FROM Employees WHERE eid = NEW.eid;
+    SELECT did INTO room_did FROM MeetingRooms WHERE floor_num = NEW.floor_num and room_num = NEW.room_num;
+
+    IF m_did <> room_did
+    THEN RAISE EXCEPTION 'Manager must be from the same department as the room to change its capacity.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$
+    LANGUAGE plpgsql;
+
+CREATE TRIGGER check_updates_insert_or_update_t
+BEFORE INSERT OR UPDATE ON Updates
+FOR EACH ROW EXECUTE FUNCTION check_updates_insert_or_update_t_func();
+
+-- Trigger for Updates's DELETE 
+DROP TRIGGER IF EXISTS block_updates_delete_t ON Updates CASCADE;
+
+CREATE OR REPLACE FUNCTION block_updates_delete_t_func() RETURNS TRIGGER AS
+$$
+BEGIN 
+    RAISE EXCEPTION 'Deleting of Updates data is not allowed!';
+    RETURN NULL;
+END;
+$$
+    LANGUAGE plpgsql;
+
+CREATE TRIGGER block_updates_delete_t
+BEFORE DELETE ON Updates
+FOR EACH ROW EXECUTE FUNCTION block_updates_delete_t_func();
 
 /* 
     BASIC FUNCTIONS
@@ -420,32 +497,22 @@ CREATE OR REPLACE FUNCTION change_capacity
 	(IN floornum INT, IN roomnum INT, IN room_cap INT, IN today_date DATE, IN e_id INT) RETURNS VOID AS 
 $$
 DECLARE 
-	d_id INT;
-	room_did INT;
 	is_manager BOOLEAN := false;
 BEGIN
-	SELECT did INTO d_id FROM Employees WHERE eid = e_id;
-	SELECT did INTO room_did FROM MeetingRooms WHERE floor_num = floornum AND room_num = roomnum;
 	IF e_id IN (SELECT eid FROM Managers) THEN is_manager = true;
 	ELSE RAISE EXCEPTION USING 
 		errcode='NOTMA';
 	END IF;
-	IF d_id = room_did THEN 
-		IF (today_date, floornum, roomnum) IN (SELECT date, floor_num, room_num FROM Updates) 
-			THEN UPDATE Updates
-			    SET new_cap = room_cap, eid = e_id
-				WHERE date = today_date AND floor_num = floornum AND room_num = roomnum; 
-		ELSE INSERT INTO Updates (date, new_cap, floor_num, room_num, eid) VALUES (today_date, room_cap, floornum, roomnum, e_id);
-		END IF;
-	ELSE RAISE EXCEPTION USING
-		errcode='NOTID';
-	END IF;
+
+    IF (today_date, floornum, roomnum) IN (SELECT date, floor_num, room_num FROM Updates) 
+        THEN UPDATE Updates
+            SET new_cap = room_cap, eid = e_id
+            WHERE date = today_date AND floor_num = floornum AND room_num = roomnum; 
+    ELSE INSERT INTO Updates (date, new_cap, floor_num, room_num, eid) VALUES (today_date, room_cap, floornum, roomnum, e_id);
+    END IF;
 	
 EXCEPTION 
-	WHEN sqlstate 'NOTMA' THEN RAISE EXCEPTION 'Only managers can change the room capacity.';
-	WHEN sqlstate 'NOTID' THEN RAISE EXCEPTION 'Manager must be from the same department as the room to change its capacity';
-
-	
+	WHEN sqlstate 'NOTMA' THEN RAISE EXCEPTION 'Only managers can change the room capacity.';	
 END
 $$ 
 	LANGUAGE plpgsql;
@@ -460,6 +527,7 @@ DECLARE
 	e_id_str TEXT;
 	g_email TEXT;
 BEGIN
+
 	eid := SELECT MAX(eid)  FROM Employees;	
 	e_id = e_id + 1;
 	SELECT CAST(e_id AS TEXT) INTO e_id_str;
@@ -1092,12 +1160,11 @@ $$ LANGUAGE plpgsql;
 
 -- HEALTH FUNCTIONS
 --declare_health
-DROP FUNCTION declare_health(integer,date,numeric);
 CREATE OR REPLACE FUNCTION declare_health (IN input_id INT, IN input_date DATE, IN input_temp NUMERIC) RETURNS VOID AS 
 $$
 BEGIN
     IF input_id IN (SELECT eid FROM Employees)
-        INSERT INTO HealthDeclarations (date, temp, eid) VALUES (input_date, input_temp, input_id);
+        THEN INSERT INTO HealthDeclarations (date, temp, eid) VALUES (input_date, input_temp, input_id);
     ELSE RAISE EXCEPTION USING
         errcode='NOEID';
     END IF;
@@ -1167,24 +1234,22 @@ $$
 	LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS cannot_modify_health_declaration on HealthDeclarations;
-CREATE TRIGGER IF EXISTS cannot_modify_health_declaration
-BEFORE UPDATE OR DELETE ON HealthDeclarations
-FOR EACH STATEMENT
-EXECUTE FUNCTION prevent_modification();
 
 CREATE OR REPLACE FUNCTION prevent_modification() RETURNS TRIGGER AS 
 $$
 BEGIN
+    RAISE EXCEPTION 'Modification of Health Declarations are not allowed!';
     RETURN NULL;
 END
 $$ 
 	LANGUAGE plpgsql;
 
+CREATE TRIGGER cannot_modify_health_declaration
+BEFORE UPDATE OR DELETE ON HealthDeclarations
+FOR EACH ROW
+EXECUTE FUNCTION prevent_modification();
+
 DROP TRIGGER IF exists contact_trace_if_fever on HealthDeclarations;
-CREATE TRIGGER contact_trace_if_fever
-AFTER INSERT ON HealthDeclarations
-FOR EACH ROW WHEN (NEW.temp > 37.5)
-EXECUTE FUNCTION contact_trace();
 
 CREATE OR REPLACE FUNCTION contact_trace () RETURNS TRIGGER AS 
 $$
