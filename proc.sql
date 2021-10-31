@@ -53,6 +53,8 @@ DECLARE
 
 BEGIN 
     -- Ensure there is a primary key (eid) and name to generate the email
+    -- Primary key constraints in the relational schema would ensure eid is
+    -- not repeated
     IF NEW.eid IS NOT NULL AND NEW.ename IS NOT NULL THEN 
         
         SELECT CAST(NEW.eid AS TEXT) INTO e_id_str;
