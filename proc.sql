@@ -1153,12 +1153,11 @@ $$ LANGUAGE plpgsql;
 
 -- HEALTH FUNCTIONS
 --declare_health
-DROP FUNCTION declare_health(integer,date,numeric);
 CREATE OR REPLACE FUNCTION declare_health (IN input_id INT, IN input_date DATE, IN input_temp NUMERIC) RETURNS VOID AS 
 $$
 BEGIN
     IF input_id IN (SELECT eid FROM Employees)
-        INSERT INTO HealthDeclarations (date, temp, eid) VALUES (input_date, input_temp, input_id);
+        THEN INSERT INTO HealthDeclarations (date, temp, eid) VALUES (input_date, input_temp, input_id);
     ELSE RAISE EXCEPTION USING
         errcode='NOEID';
     END IF;
@@ -1228,24 +1227,22 @@ $$
 	LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS cannot_modify_health_declaration on HealthDeclarations;
-CREATE TRIGGER IF EXISTS cannot_modify_health_declaration
-BEFORE UPDATE OR DELETE ON HealthDeclarations
-FOR EACH STATEMENT
-EXECUTE FUNCTION prevent_modification();
 
 CREATE OR REPLACE FUNCTION prevent_modification() RETURNS TRIGGER AS 
 $$
 BEGIN
+    RAISE EXCEPTION 'Modification of Health Declarations are not allowed!';
     RETURN NULL;
 END
 $$ 
 	LANGUAGE plpgsql;
 
+CREATE TRIGGER cannot_modify_health_declaration
+BEFORE UPDATE OR DELETE ON HealthDeclarations
+FOR EACH ROW
+EXECUTE FUNCTION prevent_modification();
+
 DROP TRIGGER IF exists contact_trace_if_fever on HealthDeclarations;
-CREATE TRIGGER contact_trace_if_fever
-AFTER INSERT ON HealthDeclarations
-FOR EACH ROW WHEN (NEW.temp > 37.5)
-EXECUTE FUNCTION contact_trace();
 
 CREATE OR REPLACE FUNCTION contact_trace () RETURNS TRIGGER AS 
 $$
