@@ -61,7 +61,7 @@ BEGIN
         SELECT CONCAT(e_id_str, '@company.com') INTO g_email;
 
         -- check if email is valid
-        IF NEW.email = g_email THEN RETURN NEW;
+        IF NEW.EMAIL IS NOT NULL AND NEW.email = g_email THEN RETURN NEW;
         ELSE RAISE EXCEPTION 'Email format invalid!';
         RETURN NULL;
         END IF;
@@ -141,7 +141,7 @@ FOR EACH ROW EXECUTE FUNCTION block_emp_delete_t_func();
 
 
 -- Trigger for Junior's INSERT to check data
-DROP TRIGGER IF EXISTS check_junior_insert_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS check_junior_insert_t ON Juniors CASCADE;
 
 CREATE OR REPLACE FUNCTION check_junior_insert_t_func() RETURNS TRIGGER AS
 $$
@@ -151,6 +151,7 @@ BEGIN
         OR NEW.eid IN (SELECT eid FROM Managers) THEN
             RAISE EXCEPTION 'This eid already exists in another role. Insertion failed.';
             RETURN NULL;
+    ELSE RETURN NEW;
     END IF;
 END;
 $$ 
@@ -161,7 +162,7 @@ BEFORE INSERT ON Juniors
 FOR EACH ROW EXECUTE FUNCTION check_junior_insert_t_func();
 
 -- Trigger for Junior's UPDATE
-DROP TRIGGER IF EXISTS block_junior_update_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS block_junior_update_t ON Juniors CASCADE;
 
 CREATE OR REPLACE FUNCTION block_junior_update_t_func() RETURNS TRIGGER AS
 $$
@@ -177,7 +178,7 @@ BEFORE UPDATE ON Juniors
 FOR EACH ROW EXECUTE FUNCTION block_junior_update_t_func();
 
 -- Trigger for Junior's DELETE
-DROP TRIGGER IF EXISTS block_junior_delete_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS block_junior_delete_t ON Juniors CASCADE;
 
 CREATE OR REPLACE FUNCTION block_junior_delete_t_func() RETURNS TRIGGER AS
 $$
@@ -194,7 +195,7 @@ FOR EACH ROW EXECUTE FUNCTION block_junior_delete_t_func();
 
 
 -- Trigger for Booker's INSERT to check data
-DROP TRIGGER IF EXISTS check_booker_insert_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS check_booker_insert_t ON Bookers CASCADE;
 
 CREATE OR REPLACE FUNCTION check_booker_insert_t_func() RETURNS TRIGGER AS
 $$
@@ -202,6 +203,7 @@ BEGIN
 	IF NEW.eid IN (SELECT eid FROM Juniors) THEN
             RAISE EXCEPTION 'This eid already exists in another role. Insertion failed.';
             RETURN NULL;
+    ELSE RETURN NEW;
     END IF;
 END;
 $$ 
@@ -212,7 +214,7 @@ BEFORE INSERT ON Bookers
 FOR EACH ROW EXECUTE FUNCTION check_booker_insert_t_func();
 
 -- Trigger for Booker's UPDATE
-DROP TRIGGER IF EXISTS block_booker_update_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS block_booker_update_t ON Bookers CASCADE;
 
 CREATE OR REPLACE FUNCTION block_booker_update_t_func() RETURNS TRIGGER AS
 $$
@@ -228,7 +230,7 @@ BEFORE UPDATE ON Bookers
 FOR EACH ROW EXECUTE FUNCTION block_booker_update_t_func();
 
 -- Trigger for Booker's DELETE
-DROP TRIGGER IF EXISTS block_booker_delete_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS block_booker_delete_t ON Bookers CASCADE;
 
 CREATE OR REPLACE FUNCTION block_booker_delete_t_func() RETURNS TRIGGER AS
 $$
@@ -244,7 +246,7 @@ BEFORE DELETE ON Bookers
 FOR EACH ROW EXECUTE FUNCTION block_booker_delete_t_func();
 
 -- Trigger for Senior's INSERT to check data
-DROP TRIGGER IF EXISTS check_senior_insert_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS check_senior_insert_t ON Seniors CASCADE;
 
 CREATE OR REPLACE FUNCTION check_senior_insert_t_func() RETURNS TRIGGER AS
 $$
@@ -253,6 +255,7 @@ BEGIN
         OR NEW.eid IN (SELECT eid FROM Managers) THEN
             RAISE EXCEPTION 'This eid already exists in another role. Insertion failed.';
             RETURN NULL;
+    ELSE RETURN NEW;
     END IF;
 END;
 $$ 
@@ -263,7 +266,7 @@ BEFORE INSERT ON Seniors
 FOR EACH ROW EXECUTE FUNCTION check_senior_insert_t_func();
 
 -- Trigger for Senior's UPDATE
-DROP TRIGGER IF EXISTS block_senior_update_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS block_senior_update_t ON Seniors CASCADE;
 
 CREATE OR REPLACE FUNCTION block_senior_update_t_func() RETURNS TRIGGER AS
 $$
@@ -279,7 +282,7 @@ BEFORE UPDATE ON Seniors
 FOR EACH ROW EXECUTE FUNCTION block_senior_update_t_func();
 
 -- Trigger for Senior's DELETE
-DROP TRIGGER IF EXISTS block_senior_delete_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS block_senior_delete_t ON Seniors CASCADE;
 
 CREATE OR REPLACE FUNCTION block_senior_delete_t_func() RETURNS TRIGGER AS
 $$
@@ -296,7 +299,7 @@ FOR EACH ROW EXECUTE FUNCTION block_senior_delete_t_func();
 
 
 -- Trigger for Manager's INSERT to check data
-DROP TRIGGER IF EXISTS check_manager_insert_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS check_manager_insert_t ON Managers CASCADE;
 
 CREATE OR REPLACE FUNCTION check_manager_insert_t_func() RETURNS TRIGGER AS
 $$
@@ -305,6 +308,7 @@ BEGIN
         OR NEW.eid IN (SELECT eid FROM Seniors) THEN
             RAISE EXCEPTION 'This eid already exists in another role. Insertion failed.';
             RETURN NULL;
+    ELSE RETURN NEW;
     END IF;
 END;
 $$ 
@@ -315,7 +319,7 @@ BEFORE INSERT ON Managers
 FOR EACH ROW EXECUTE FUNCTION check_manager_insert_t_func();
 
 -- Trigger for Manager's UPDATE
-DROP TRIGGER IF EXISTS block_manager_update_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS block_manager_update_t ON Managers CASCADE;
 
 CREATE OR REPLACE FUNCTION block_manager_update_t_func() RETURNS TRIGGER AS
 $$
@@ -331,7 +335,7 @@ BEFORE UPDATE ON Managers
 FOR EACH ROW EXECUTE FUNCTION block_manager_update_t_func();
 
 -- Trigger for Manager's DELETE
-DROP TRIGGER IF EXISTS block_manager_delete_t ON Employees CASCADE;
+DROP TRIGGER IF EXISTS block_manager_delete_t ON Managers CASCADE;
 
 CREATE OR REPLACE FUNCTION block_manager_delete_t_func() RETURNS TRIGGER AS
 $$
@@ -456,7 +460,7 @@ DECLARE
 	e_id_str TEXT;
 	g_email TEXT;
 BEGIN
-	SELECT MAX(eid) AS e_id FROM Employees;	
+	eid := SELECT MAX(eid)  FROM Employees;	
 	e_id = e_id + 1;
 	SELECT CAST(e_id AS TEXT) INTO e_id_str;
 	SELECT CONCAT(e_id_str, '@company.com') INTO g_email;
