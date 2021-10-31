@@ -53,10 +53,12 @@ DECLARE
 
 BEGIN 
     -- Ensure there is a primary key (eid) and name to generate the email
+    -- Primary key constraints in the relational schema would ensure eid is
+    -- not repeated
     IF NEW.eid IS NOT NULL AND NEW.ename IS NOT NULL THEN 
         
         SELECT CAST(NEW.eid AS TEXT) INTO e_id_str;
-        SELECT CONCAT(e_id_str, '_', NEW.ename, '@company.com') INTO g_email;
+        SELECT CONCAT(e_id_str, '@company.com') INTO g_email;
 
         -- check if email is valid
         IF NEW.email = g_email THEN RETURN NEW;
@@ -454,10 +456,10 @@ DECLARE
 	e_id_str TEXT;
 	g_email TEXT;
 BEGIN
-	SELECT COUNT(*) INTO e_id FROM Employees;	
+	SELECT MAX(eid) AS e_id FROM Employees;	
 	e_id = e_id + 1;
 	SELECT CAST(e_id AS TEXT) INTO e_id_str;
-	SELECT CONCAT(e_id_str, '_', name, '@company.com') INTO g_email;
+	SELECT CONCAT(e_id_str, '@company.com') INTO g_email;
 	
 	INSERT INTO Employees VALUES (e_id, name, home_con, mobile_con, office_con, g_email, null, d_id);
 	
