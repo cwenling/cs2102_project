@@ -153,7 +153,6 @@ BEGIN
             RETURN NULL;
     ELSE RETURN NEW;
     END IF;
-    RETURN NEW;
 END;
 $$ 
 	LANGUAGE plpgsql;
